@@ -7,14 +7,14 @@ from __future__ import print_function
 
 se_vars = dict(
     CHI=dict(b_v='5171001', b_jv='5171015', c_v='5171028', c_jv='5171041'),
-    ELL=dict(b_v='5171002', b_jv='5171017', c_v='5171030', c_jv='5171043'),
-    MAN=dict(b_v='5171003', b_jv='5171018', c_v='5171031', c_jv='5171044'),
+    ELL=dict(b_v='5171002', b_jv='5171017', c_v='5171030', c_jv='5171043', d='5171053'),
+    MAN=dict(b_v='5171003', b_jv='5171018', c_v='5171031', c_jv='5171044', d='5171058'),
     NRW=dict(b_v='5171004', b_jv='5171019', c_v='5171032', c_jv='5171045'),
-    NRT=dict(b_v='5171005', b_jv='5171020', c_v='5171033', c_jv='5171046'),
-    SPR=dict(b_v='5171006', b_jv='5171022', c_v='5171035', c_jv='5171048'),
-    TAB=dict(b_v='5171007', b_jv='5171023', c_v='5171036', c_jv='5171049'),
+    NRT=dict(b_v='5171005', b_jv='5171020', c_v='5171033', c_jv='5171046', d='5171054'),
+    SPR=dict(b_v='5171006', b_jv='5171022', c_v='5171035', c_jv='5171048', d='5171074'),
+    TAB=dict(b_v='5171007', b_jv='5171023', c_v='5171036', c_jv='5171049', d='5171055'),
     TAG=dict(b_v='5171008', b_jv='5171024'),
-    BAR=dict(b_v='5171009', b_jv='5171014', c_v='5171027', c_jv='5171040'),
+    BAR=dict(b_v='5171009', b_jv='5171014', c_v='5171027', c_jv='5171040', d='5171059'),
     COV=dict(b_v='5171010', b_jv='5171016', c_v='5171029', c_jv='5171042'),
     RIT=dict(b_v='5171011', b_jv='5171021', c_v='5171034', c_jv='5171047'),
     TUS=dict(b_v='5171012', b_jv='5171025', c_v='5171038', c_jv='5171051'),
@@ -36,15 +36,15 @@ teams = dict(
 )
 
 weeks = [
-    '2019-08-17',
-    '2019-08-24',
-    '2019-08-31',
-    '2019-09-07',
-    '2019-09-14',
-    '2019-09-21',
-    '2019-09-28',
-    '2019-10-05',
-    '2019-10-12',
+    '08/17/2019',
+    '08/24/2019',
+    '08/31/2019',
+    '09/07/2019',
+    '09/14/2019',
+    '09/21/2019',
+    '09/28/2019',
+    '10/05/2019',
+    '10/12/2019',
 ]
 
 game_matrix_b_division = """
@@ -76,12 +76,15 @@ TAB	@TUS	RIT	NRT	@COV	NRW	@ELL	@BAR	MAN	BYE
 TUS	TAB	BYE	@SPR	ELL	MAN	@RIT	@NRW	@CHI	BAR
 """
 
-
-output_example = """
-Start_Date	Start_Time	End_Date	End_Time	Title	Description	Location	Location_URL	All_Day_Event	Event_Type	Tags	Team1_ID	Team1_Division_ID	Team1_Is_Home	Team2_ID
-2019-08-17	1:30 PM	2019-08-17	3:00 PM	B Varsity - Barberton @ Tallmadge Gold	Tackle - B Varsity				GAME		4353213		1	
-2019-08-17	3:00 PM	2019-08-17	4:30 PM	B JV - Barberton @ Tallmadge Gold	Tackle - B JV				GAME		4353228		1	
+game_matrix_d_division = """
+BAR	MAN	ELL	@NRT	TAB	@SPR	@MAN
+ELL	SPR	@BAR	TAB	@SPR	MAN	@NRT
+MAN	@BAR	@TAB	SPR	NRT	@ELL	BAR
+NRT	@TAB	@SPR	BAR	@MAN	TAB	ELL
+SPR	@ELL	NRT	@MAN	ELL	BAR	@TAB
+TAB	NRT	MAN	@ELL	@BAR	@NRT	SPR
 """
+
 
 # Handle B division (varsity and JV together)
 rows = [r for r in game_matrix_b_division.split('\n') if r.strip() != ""]
@@ -147,5 +150,31 @@ for row in rows:
             'Tackle - C JV\t' + team_home[1] + '\t' + team_home[2] + '\t' +
             ' \tGAME\t \t' +
             se_home['c_jv'] + '\t \t1\t' + se_opp['c_jv']
+        )
+
+# Handle D division
+rows = [r for r in game_matrix_d_division.split('\n') if r.strip() != ""]
+for row in rows:
+    cells = row.split('\t')
+    home = cells[0]
+    for i, opp in enumerate(cells):
+        if i == 0:
+            continue
+        if '@' in opp:
+            continue
+        if opp == 'BYE':
+            continue
+        team_home = teams[home]
+        team_opp = teams[opp]
+        se_home = se_vars[home]
+        se_opp = se_vars[opp]
+        week = weeks[i] # note, D team starts 1 week delayed
+
+        print(
+            week + '\t09:00 AM\t' + week + '\t10:30 AM\t' +
+            'D Team - ' + team_opp[0] + ' @ ' + team_home[0] + '\t' +
+            'Rookie Tackle - D Team\t' + team_home[1] + '\t' + team_home[2] + '\t' +
+            ' \tGAME\t \t' +
+            se_home['d'] + '\t \t1\t' + se_opp['d']
         )
 
