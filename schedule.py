@@ -72,14 +72,16 @@ class LeagueSchedule:
         teams.sort(key=lambda t: t.abbrev)
         for team in teams:
             ta = team.abbrev
+            if ta == 'BYE':
+                continue
             opponents = [self.opponent_in_week(ta, i+1) for i in range(self.num_weeks)]
             unplayed = list(set(t for t in self.teams.keys() if t != ta) - set(o.lstrip('@') for o in opponents))
-            line = "%s\t" % ta
+            line = "%s:\t" % ta
             for opponent in opponents:
                 if opponent == 'BYE':
                     opponent = '*BYE*'
                 line += "%s\t" % opponent
-            line += ",".join(unplayed)
+            line += "<" + ",".join(unplayed) + ">"
             print(line)
 
     def add(self, game):
@@ -352,7 +354,8 @@ teams_byfc_south_2020 = dict(
     MAS=Team('MAS', None),
     PRA=Team('PRA', None), #Perry A
     PRB=Team('PRB', None), #Perry B
-    
+
+    BYE=Team('BYE', None), #Represents a *BYE* to get to even number of teams in conference
 )
 
 # Weeks
@@ -374,7 +377,7 @@ teams_byfc_south_2020 = dict(
 # Perry home games only on August 22nd; September 5th and 26th; October 3rd, 10th, 24th, 31st
 # Massillon home Aug 15 thru Oct 24 ... Plus possible PBTS ... Cannot October 3, road game
 overrides_byfc_north_2020 = [
-    #dict(team='TAB', avoid_opponent='TAG'),
+    dict(team='TAB', avoid_opponent='TAG'),
     dict(team='NRT', week=8, force_home=True),
     dict(team='BAR', week=2, force_home=True),
 ]
@@ -486,7 +489,8 @@ def try_make_b_team_schedule():
 
     # Validate Tallmadge 2 teams not sharing field
     for week in range(number_weeks):
-        if schedule.is_home_in_week('TAG', week+1) and schedule.is_home_in_week('TAB', week+1):
+        week = week + 1
+        if schedule.is_home_in_week('TAG', week) and schedule.is_home_in_week('TAB', week):
             raise IterationError('TAG and TAB both home in week %s' % week)
 
     return schedule
