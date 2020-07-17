@@ -307,6 +307,35 @@ teams_byfc_2019 = dict(
     TUS=Team('TUS', fields[16]),
 )
 
+
+# 2019 Season Weeks		
+# 1	8/17	
+# 2	8/24	Barberton Home, Norton Away
+# 3	8/31	
+# 4	9/7	Norton Home (if possible, Tallmadge Blue Bye this week)
+# 5	9/14	
+# 6	9/21	Coventry Home
+# 7	9/28	Barberton Home
+# 8	10/5	Norton Home vs Barberton
+# 9	10/12	(only used to make up C division byes)
+#
+# Core Rules/Constraints:
+# * each team has 4 Home, 4 Away games
+# * no team plays same team twice
+# * no more than 3 home or away games in a row
+# * same field cannot be used for more than one game at a time
+#
+# Possible Algorithm:
+# * schedule the B division with all 12 teams, no byes
+# * copy B division to start of C team schedule
+#       - no TAG team ... remove those games, replacing with BYE
+#       - 2 remaining teams need to be facing each other in some week
+#         (preferably middle of season), add that game as a bye (making 3 byes
+#         in 1 week)
+#       - add 9th week to C team calendar, pushing all bye TEAMs into that week
+#         and attempting to distribute matchups to those that haven't played
+#         each other
+#
 overrides_byfc_2019 = [
     dict(team='TAB', avoid_opponent='SPR'),
     dict(team='TAB', avoid_opponent='TAG'),
@@ -352,13 +381,13 @@ teams_byfc_south_2020 = dict(
     MAN=Team('MAN', fields[5]),
     NRW=Team('NRW', fields[4]),
     MAS=Team('MAS', None),
-    PRA=Team('PRA', None), #Perry A
-    PRB=Team('PRB', None), #Perry B
+    PER=Team('PER', None),
 
-    BYE=Team('BYE', None), #Represents a *BYE* to get to even number of teams in conference
+    BYE1=Team('BYE1', None), #Represents a *BYE* to get to even number of teams in conference
+    BYE2=Team('BYE2', None), #Represents a *BYE* to get to even number of teams in conference
 )
 
-# Weeks
+# 2020 Season Weeks
 #   1 - 8/15
 #   2 - 8/22
 #   3 - 8/29
@@ -378,12 +407,27 @@ teams_byfc_south_2020 = dict(
 # Massillon home Aug 15 thru Oct 24 ... Plus possible PBTS ... Cannot October 3, road game
 overrides_byfc_north_2020 = [
     dict(team='TAB', avoid_opponent='TAG'),
-    dict(team='NRT', week=8, force_home=True),
-    dict(team='BAR', week=2, force_home=True),
+    dict(team='NRT', week=8, force_home=True, force_opponent='TAG'),
+    dict(team='BAR', week=2, force_home=True, force_opponent='TAB'),
+]
+overrides_byfc_south_2020 = [
+    dict(team='NRW', week=3, force_home=True),
+    dict(team='NRW', week=7, force_home=True),
+    dict(team='CHI', week=4, force_home=True),
+    dict(team='CHI', week=6, force_home=True),
+    dict(team='CHI', week=8, force_home=True),
+    dict(team='TUS', week=5, force_home=True),
+    dict(team='PER', week=2, force_home=True),
+    dict(team='PER', week=4, force_home=True),
+    dict(team='PER', week=7, force_home=True),
+    dict(team='PER', week=8, force_home=True),
+    dict(team='MAS', week=8, force_away=True),
 ]
 
-teams = teams_byfc_north_2020
-overrides = overrides_byfc_north_2020
+#teams = teams_byfc_north_2020
+#overrides = overrides_byfc_north_2020
+teams = teams_byfc_south_2020
+overrides = overrides_byfc_south_2020
 overrides_by_week = {}
 
 def get_overrides_by_week(week):
@@ -395,35 +439,6 @@ def get_overrides_by_week(week):
     return overrides_by_week.get(week) or []
 
 number_weeks = 8
-
-# Weeks		
-# 1	8/17	
-# 2	8/24	Barberton Home, Norton Away
-# 3	8/31	
-# 4	9/7	Norton Home (if possible, Tallmadge Blue Bye this week)
-# 5	9/14	
-# 6	9/21	Coventry Home
-# 7	9/28	Barberton Home
-# 8	10/5	Norton Home vs Barberton
-# 9	10/12	(only used to make up C division byes)
-#
-# Core Rules/Constraints:
-# * each team has 4 Home, 4 Away games
-# * no team plays same team twice
-# * no more than 3 home or away games in a row
-# * same field cannot be used for more than one game at a time
-#
-# Possible Algorithm:
-# * schedule the B division with all 12 teams, no byes
-# * copy B division to start of C team schedule
-#       - no TAG team ... remove those games, replacing with BYE
-#       - 2 remaining teams need to be facing each other in some week
-#         (preferably middle of season), add that game as a bye (making 3 byes
-#         in 1 week)
-#       - add 9th week to C team calendar, pushing all bye TEAMs into that week
-#         and attempting to distribute matchups to those that haven't played
-#         each other
-#
 
 def try_make_b_team_schedule():
     """ Generate the schedule for the B division, returning an instance
