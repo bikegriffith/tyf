@@ -125,11 +125,11 @@ class LeagueSchedule:
                 return g.away.abbrev
         return None
 
-    def contains_matchup(self, abbrev1, abbrev2):
+    def contains_matchup(self, abbrev1, abbrev2, mode=None):
         for g in self.games:
-            if g.away.abbrev == abbrev1 and g.home.abbrev == abbrev2:
+            if mode != 'home' and g.away.abbrev == abbrev1 and g.home.abbrev == abbrev2:
                 return True
-            if g.away.abbrev == abbrev2 and g.home.abbrev == abbrev1:
+            if mode != 'away' and g.away.abbrev == abbrev2 and g.home.abbrev == abbrev1:
                 return True
         return False
 
@@ -431,11 +431,13 @@ overrides_byfc_south_2020 = [
 
 #
 # Requests:
-#     Perry home games only on August 22nd; September 5th and 26th; October 3rd, 10th, 24th, 31st
+#     Perry home games only on September 26th; October 3rd, 10th, 24th, 31st
 #       --> force away on 9/12, 9/19, 10/17
 #     Tuslaw 9/12 home game @ HS
 #     Norton 9/19 AWAY (and 10/3 home previously?)
 #     Copley 3 road games 9/12, 9/19, 9/26...
+#     Northwest must have home game 9/12
+#     Nordonia has its High School field on September 19th ,26th and October 3rd.
 #     Tallmadge D, C, B either all home or all away if possible....
 #     Parma ALL road games (just give their away opponents an extra "home")
 # Teams:
@@ -453,18 +455,17 @@ overrides_byfc_south_2020 = [
 #     Tuslaw
 #     Perry
 # 6 regular season games, then gold (top 6), silver (bottom 6) playoffs
-# 9/5 week one, tallmadge has bye week one, tallmadge starts 9/12 ... first week bye can be alongside Hudson
+# starts 9/12
 # Games times, D 9am, CV1030 jv immediately following, B 2p, jv
 #
 # Weeks
-#     1   9/5     Tallmadge bye, Hudson bye, Perry home, [Copley home]
-#     2   9/12    Tuslaw home, Copley away, Perry away
-#     3   9/19    Norton away, Copley away, Perry away
-#     4   9/26    Copley away, Perry home, {{Northwest home}}
-#     5   10/3    Norton home, [Copley home]
-#     6   10/10   [Copley home]
-#     7   10/17   Perry away
-#     P2  10/24
+#     1   9/12    Tuslaw home, Copley away, Perry away, Northwest home
+#     2   9/19    Norton away, Copley away, Perry away, Nordonia home
+#     3   9/26    Copley away, Perry home, Nordonia home
+#     4   10/3    [Copley home], Nordonia home
+#     5   10/10   [Copley home]
+#     6   10/17   Perry away
+#     P1  10/24
 #
 teams_2020 = dict(
     BAR=Team('BAR', fields[9]),
@@ -482,25 +483,39 @@ teams_2020 = dict(
 )
 
 overrides_2020 = [
-    dict(team='TAL', avoid_opponent='PRM'),
-    dict(team='TAL', week=1, force_opponent='HUD'), #simulated BYE
+    #dict(team='TAL', avoid_opponent='PRM'),
+    dict(team='TAL', week=1, force_away=True, force_opponent='HUD'),
+    dict(team='TAL', week=3, force_away=True, force_opponent='NRD'),
+    dict(team='TAL', week=4, force_away=True, force_opponent='PER'),
 
-    dict(team='COP', week=2, force_away=True, force_opponent='TUS'),
-    #dict(team='TUS', week=2, force_home=True), #--^ combined
-    dict(team='COP', week=4, force_away=True, force_opponent='NRW'),
-    #dict(team='NRW', week=4, force_home=True), #--^ combined
+    # Satistfy 2 team requests
+    dict(team='COP', week=1, force_away=True, force_opponent='TUS'),
+    dict(team='PER', week=1, force_away=True, force_opponent='NRW'),
 
-    dict(team='PER', week=1, force_home=True, avoid_opponents_this_week=['COP']),
-    dict(team='PER', week=2, force_away=True, avoid_opponents_this_week=['COP', 'PRM']),
-    dict(team='PER', week=3, force_away=True, avoid_opponents_this_week=['NRT', 'COP', 'PRM']),
-    dict(team='PER', week=4, force_home=True, avoid_opponents_this_week=['NRW']),
+    # Nordonia
+    dict(team='NRD', week=1, force_away=True, avoid_opponents_this_week=['PRM']),
+    dict(team='NRD', week=2, force_home=True),
+    #dict(team='NRD', week=3, force_home=True, avoid_opponents_this_week=['PER']),
+    dict(team='NRD', week=4, force_home=True, avoid_opponents_this_week=['COP', 'PER']),
+    dict(team='NRD', week=5, force_away=True, avoid_opponents_this_week=['PRM']),
+    dict(team='NRD', week=6, force_away=True, avoid_opponents_this_week=['PER', 'PRM']),
 
-    dict(team='NRT', week=3, force_away=True, avoid_opponents_this_week=['COP', 'PER', 'PRM']),
+    # Perry
+    dict(team='PER', week=2, force_away=True, avoid_opponents_this_week=['NRT', 'COP', 'PRM']),
+    dict(team='PER', week=3, force_home=True, avoid_opponents_this_week=['NRD']),
+    #dict(team='PER', week=4, force_home=True, avoid_opponents_this_week=['NRD', 'COP']),
+    dict(team='PER', week=5, force_home=True, avoid_opponents_this_week=[]),
+    dict(team='PER', week=6, force_away=True, avoid_opponents_this_week=['NRD', 'PRM']),
 
-    dict(team='COP', week=1, force_home=True, avoid_opponents_this_week=['PER']),
-    dict(team='COP', week=3, force_away=True, avoid_opponents_this_week=['NRT', 'PER', 'PRM']),
-    dict(team='COP', week=5, force_home=True, avoid_opponents_this_week=['NRT']),
-    dict(team='COP', week=6, force_home=True),
+    # Norton
+    dict(team='NRT', week=2, force_away=True, avoid_opponents_this_week=['COP', 'PER', 'PRM']),
+
+    # Copley
+    dict(team='COP', week=2, force_away=True, avoid_opponents_this_week=['NRT', 'PER', 'PRM']),
+    dict(team='COP', week=3, force_away=True, avoid_opponents_this_week=['PRM']),
+    dict(team='COP', week=4, force_home=True, avoid_opponents_this_week=['NRD', 'PER']),
+    dict(team='COP', week=5, force_home=True, avoid_opponents_this_week=[]),
+    dict(team='COP', week=6, force_home=True, avoid_opponents_this_week=[]),
 
     #dict(team='NRT', week=5, force_home=True), #<-- maybe not a thing anymore
 
@@ -663,8 +678,8 @@ def make_schedules():
             b_schedule.print_schedule()
 
             # Special requests
-            if not b_schedule.contains_matchup('TAL', 'PER'):
-                print("Missing Tallmadge vs Perry. Will try again (attempt %s)" % i)
+            if not b_schedule.contains_matchup('TAL', 'PER') and not b_schedule.contains_matchup('TAL', 'HUD'):
+                print("Missing Tallmadge vs Perry|Hudson. Will try again (attempt %s)" % i)
                 continue
             if not b_schedule.contains_matchup('NRT', 'COP'):
                 print("Missing Norton vs Copley. Will try again (attempt %s)" % i)
@@ -676,6 +691,10 @@ def make_schedules():
             print("")
             print("--- HOME/AWAY BALANCED DIVISION SCHEDULE ---")
             b_schedule.print_schedule()
+
+            if not b_schedule.contains_matchup('TAL', 'PER', mode='away') and not b_schedule.contains_matchup('TAL', 'HUD', mode='away'):
+                print("Missing Tallmadge @ Perry|Hudson. Will try again (attempt %s)" % i)
+                continue
 
             if not balanced:
                 print("Unable to balance teams.  Will try again (attempt %s)" % i)
