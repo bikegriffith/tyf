@@ -209,7 +209,7 @@ class LeagueSchedule:
     def rebalance_home_away(self, max_iterations):
         any_team_unbalanced = False
         for i in range(max_iterations):
-            if i % 1000 == 0:
+            if debug and (i % 1000 == 0):
                 print(".", end="")
                 sys.stdout.flush()
 
@@ -424,10 +424,85 @@ overrides_byfc_south_2020 = [
     dict(team='MAS', week=8, force_away=True),
 ]
 
-#teams = teams_byfc_north_2020
-#overrides = overrides_byfc_north_2020
-teams = teams_byfc_south_2020
-overrides = overrides_byfc_south_2020
+
+
+#
+# Requests:
+#     Perry home games only on August 22nd; September 5th and 26th; October 3rd, 10th, 24th, 31st
+#     Tuslaw 9/12 home game @ HS
+#     Norton 9/19 AWAY (and 10/3 home previously?)
+#     Copley 3 road games 9/12, 9/19, 9/26...
+#     Tallmadge D, C, B either all home or all away if possible....
+#     Parma ALL road games (just give their away opponents an extra "home")
+# Teams:
+#     Parma
+#     Hudson
+#     Nordonia
+#     Copley
+#     Tallmadge
+#     highland
+#     ---------
+#     Norton
+#     Ellet
+#     Barberton
+#     Northwest
+#     Tuslaw
+#     Perry
+# 6 regular season games, then gold (top 6), silver (bottom 6) playoffs
+# 9/5 week one, tallmadge has bye week one, tallmadge starts 9/12 ... first week bye can be alongside Hudson
+# Games times, D 9am, CV1030 jv immediately following, B 2p, jv
+#
+# Weeks
+#     1   9/5     Tallmadge bye, Hudson bye, Perry home, [Copley home]
+#     2   9/12    Tuslaw home, Copley away, Perry away
+#     3   9/19    Norton away, Copley away, Perry away
+#     4   9/26    Copley away, Northwest home, Perry home
+#     5   10/3    Norton home, [Copley home]
+#     6   10/10   [Copley home]
+#     P1  10/17
+#     P2  10/24
+#
+teams_2020 = dict(
+    BAR=Team('BAR', fields[9]),
+    ELL=Team('ELL', fields[1]),
+    NRW=Team('NRW', fields[4]),
+    NRT=Team('NRT', fields[7]),
+    TAL=Team('TAL', fields[2]),
+    TUS=Team('TUS', fields[16]),
+    PER=Team('PER', Field('Perry')),
+    COP=Team('COP', Field('Copley')),
+    NRD=Team('NRD', Field('Nordonia')),
+    HGH=Team('HGH', Field('Highland')),
+    PRM=Team('PRM', Field('Parma')),
+    HUD=Team('HUD', Field('Hudson')),
+)
+
+overrides_2020 = [
+    dict(team='TAL', avoid_opponent='PRM'),
+    dict(team='TAL', week=1, force_opponent='HUD'), #simulated BYE
+
+    dict(team='COP', week=2, force_away=True, force_opponent='TUS'),
+    #dict(team='TUS', week=2, force_home=True), #--^ combined
+    dict(team='COP', week=4, force_away=True, force_opponent='NRW'),
+    #dict(team='NRW', week=4, force_home=True), #--^ combined
+
+    dict(team='PER', week=1, force_home=True, avoid_opponents_this_week=['COP']),
+    #dict(team='PER', week=2, force_away=True),
+    #dict(team='PER', week=3, force_away=True),
+    dict(team='PER', week=4, force_home=True, avoid_opponents_this_week=['NRW']),
+
+    dict(team='NRT', week=3, force_away=True, avoid_opponents_this_week=['COP', 'PER']),
+
+    dict(team='COP', week=1, force_home=True, avoid_opponents_this_week=['PER']),
+    dict(team='COP', week=3, force_away=True, avoid_opponents_this_week=['NRT', 'PER']),
+    dict(team='COP', week=5, force_home=True, avoid_opponents_this_week=['NRT']),
+    dict(team='COP', week=6, force_home=True),
+
+    #dict(team='NRT', week=5, force_home=True), #<-- maybe not a thing anymore
+]
+
+teams = teams_2020
+overrides = overrides_2020
 overrides_by_week = {}
 
 def get_overrides_by_week(week):
@@ -438,7 +513,7 @@ def get_overrides_by_week(week):
             overrides_by_week[override.get('week')].append(override)
     return overrides_by_week.get(week) or []
 
-number_weeks = 8
+number_weeks = 6
 
 def try_make_b_team_schedule():
     """ Generate the schedule for the B division, returning an instance
@@ -471,7 +546,7 @@ def try_make_b_team_schedule():
                 team = teams[override['team']]
                 if team.abbrev not in week_teams:
                     raise CannotFulfillOverride
-                opponent = pick_random_opponent(team, week_teams, schedule)
+                opponent = pick_random_opponent(team, week_teams, schedule, avoid_teams=override.get('avoid_opponents_this_week'))
                 schedule.add(Game(team, opponent, week, forced=True))
                 del week_teams[team.abbrev]
                 del week_teams[opponent.abbrev]
@@ -480,7 +555,7 @@ def try_make_b_team_schedule():
                 team = teams[override['team']]
                 if team.abbrev not in week_teams:
                     raise CannotFulfillOverride
-                opponent = pick_random_opponent(team, week_teams, schedule)
+                opponent = pick_random_opponent(team, week_teams, schedule, avoid_teams=override.get('avoid_opponents_this_week'))
                 schedule.add(Game(opponent, team, week, forced=True))
                 del week_teams[team.abbrev]
                 del week_teams[opponent.abbrev]
@@ -513,7 +588,7 @@ def try_make_b_team_schedule():
 
 pick_random_opponent_counter = 0
 
-def pick_random_opponent(team, eligible_teams, schedule):
+def pick_random_opponent(team, eligible_teams, schedule, avoid_teams=None):
     """ Pick a random opponent for the given team that has not yet
         been played against in the given schedule.
     """
@@ -524,6 +599,8 @@ def pick_random_opponent(team, eligible_teams, schedule):
     random.shuffle(teams)
     for t in teams:
         if team.abbrev == t.abbrev:
+            continue
+        if avoid_teams and t.abbrev in avoid_teams:
             continue
         if schedule.already_played(team, t):
             continue
@@ -537,9 +614,9 @@ def make_schedules():
         league schedules that satisfies all constraints.
     """
     max_outer_loop_iterations = 1000000
-    max_rebalance_home_away_iterations = 500000
+    max_rebalance_home_away_iterations = 100000  #500000
     for i in range(max_outer_loop_iterations):
-        if i % 1000 == 0:
+        if debug and (i % 1000 == 0):
             print("-", end="")
             sys.stdout.flush()
         try:
