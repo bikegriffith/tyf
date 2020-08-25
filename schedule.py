@@ -14,7 +14,7 @@ error is logged and the current best attempt will be printed.
 """
 
 from __future__ import print_function
-import random, sys
+import random, sys, math
 
 global debug
 debug = False
@@ -208,6 +208,8 @@ class LeagueSchedule:
 
     def rebalance_home_away(self, max_iterations):
         any_team_unbalanced = False
+        game_balance = number_weeks / 2  # XXX: doesn't support odd schedules
+
         for i in range(max_iterations):
             if debug and (i % 1000 == 0):
                 print(".", end="")
@@ -218,16 +220,17 @@ class LeagueSchedule:
                 count = self.home_game_count_for_team(team)
 
                 # Equal number of home/away ... now check more complex requirements
-                if count == 4:
+                if count == game_balance: # XXX: Parma doesn't matter
                     # Cannot not have more than 3 consecutive home/away
-                    max_consecutive = self.max_consecutive_home_or_away_games(team)
-                    if max_consecutive > 3:
-                        any_team_unbalanced = True
-                        g1 = self.pick_random_home_game_for_team(team)
-                        g2 = self.pick_random_away_game_for_team(team)
-                        if not g1.forced and not g2.forced:
-                            g1.swap()
-                            g2.swap()
+                    if enable_consecutive_check:
+                        max_consecutive = self.max_consecutive_home_or_away_games(team)
+                        if max_consecutive > 3:
+                            any_team_unbalanced = True
+                            g1 = self.pick_random_home_game_for_team(team)
+                            g2 = self.pick_random_away_game_for_team(team)
+                            if not g1.forced and not g2.forced:
+                                g1.swap()
+                                g2.swap()
 
                     # TAG/TAB cannot be both Home in same week (shared field)
                     if team == "TAG" or team == "TAB":
@@ -249,12 +252,12 @@ class LeagueSchedule:
 
                 # More or less than 4 home games ... try to rebalance
                 any_team_unbalanced = True
-                if count > 4:
-                    for i in range(count - 4):
+                if count > math.ceil(game_balance):
+                    for i in range(count - game_balance):
                         g = self.pick_random_home_game_for_team(team)
                         if not g.forced:
                             g.swap()
-                if count < 4:
+                if count < math.floor(game_balance): # XXX: Parma doesn't matter
                     for i in range(count):
                         g = self.pick_random_away_game_for_team(team)
                         if not g.forced:
@@ -429,6 +432,7 @@ overrides_byfc_south_2020 = [
 #
 # Requests:
 #     Perry home games only on August 22nd; September 5th and 26th; October 3rd, 10th, 24th, 31st
+#       --> force away on 9/12, 9/19, 10/17
 #     Tuslaw 9/12 home game @ HS
 #     Norton 9/19 AWAY (and 10/3 home previously?)
 #     Copley 3 road games 9/12, 9/19, 9/26...
@@ -456,10 +460,10 @@ overrides_byfc_south_2020 = [
 #     1   9/5     Tallmadge bye, Hudson bye, Perry home, [Copley home]
 #     2   9/12    Tuslaw home, Copley away, Perry away
 #     3   9/19    Norton away, Copley away, Perry away
-#     4   9/26    Copley away, Northwest home, Perry home
+#     4   9/26    Copley away, Perry home, {{Northwest home}}
 #     5   10/3    Norton home, [Copley home]
 #     6   10/10   [Copley home]
-#     P1  10/17
+#     7   10/17   Perry away
 #     P2  10/24
 #
 teams_2020 = dict(
@@ -487,18 +491,51 @@ overrides_2020 = [
     #dict(team='NRW', week=4, force_home=True), #--^ combined
 
     dict(team='PER', week=1, force_home=True, avoid_opponents_this_week=['COP']),
-    #dict(team='PER', week=2, force_away=True),
-    #dict(team='PER', week=3, force_away=True),
+    dict(team='PER', week=2, force_away=True, avoid_opponents_this_week=['COP', 'PRM']),
+    dict(team='PER', week=3, force_away=True, avoid_opponents_this_week=['NRT', 'COP', 'PRM']),
     dict(team='PER', week=4, force_home=True, avoid_opponents_this_week=['NRW']),
 
-    dict(team='NRT', week=3, force_away=True, avoid_opponents_this_week=['COP', 'PER']),
+    dict(team='NRT', week=3, force_away=True, avoid_opponents_this_week=['COP', 'PER', 'PRM']),
 
     dict(team='COP', week=1, force_home=True, avoid_opponents_this_week=['PER']),
-    dict(team='COP', week=3, force_away=True, avoid_opponents_this_week=['NRT', 'PER']),
+    dict(team='COP', week=3, force_away=True, avoid_opponents_this_week=['NRT', 'PER', 'PRM']),
     dict(team='COP', week=5, force_home=True, avoid_opponents_this_week=['NRT']),
     dict(team='COP', week=6, force_home=True),
 
     #dict(team='NRT', week=5, force_home=True), #<-- maybe not a thing anymore
+
+
+    ### dict(team='TAL', avoid_opponent='PRM'),
+    ### dict(team='TAL', week=1, force_opponent='HUD'), #simulated BYE
+
+    ### dict(team='COP', week=2, force_away=True, force_opponent='TUS'),
+    ### #dict(team='TUS', week=2, force_home=True), #--^ combined
+    ### dict(team='COP', week=4, force_away=True),
+
+    ### dict(team='PER', week=1, force_home=True, avoid_opponents_this_week=['COP']),
+    ### #dict(team='PER', week=2, force_away=True),
+    ### #dict(team='PER', week=3, force_away=True),
+    ### dict(team='PER', week=4, force_home=True, avoid_opponents_this_week=['NRW']),
+
+    ### dict(team='NRT', week=3, force_away=True, avoid_opponents_this_week=['COP', 'PER']),
+
+    ### dict(team='COP', week=1, force_home=True, avoid_opponents_this_week=['PER']),
+    ### dict(team='COP', week=3, force_away=True, avoid_opponents_this_week=['NRT', 'PER']),
+    ### dict(team='COP', week=5, force_home=True, avoid_opponents_this_week=['NRT']),
+    ### dict(team='COP', week=6, force_home=True),
+
+    ### BAR:	@NRT	HGH	TAL	@TUS	PER	@HUD	<PRM,COP,NRW,ELL,NRD>
+    ### COP:	HGH	@TUS	@NRW	@HUD	PRM	TAL	<NRT,BAR,PER,ELL,NRD>
+    ### ELL:	TUS	@NRD	PER	@NRW	@NRT	PRM	<HUD,COP,BAR,HGH,TAL>
+    ### HGH:	@COP	@BAR	TUS	@TAL	HUD	NRD	<PRM,NRW,PER,ELL,NRT>
+    ### HUD:	TAL	@PRM	@NRD	COP	@HGH	BAR	<TUS,NRW,PER,ELL,NRT>
+    ### NRD:	@PER	ELL	HUD	NRT	@TAL	@HGH	<PRM,COP,TUS,BAR,NRW>
+    ### NRT:	BAR	@TAL	@PRM	@NRD	ELL	NRW	<HUD,COP,TUS,HGH,PER>
+    ### NRW:	@PRM	@PER	COP	ELL	TUS	@NRT	<HUD,TAL,BAR,HGH,NRD>
+    ### PER:	NRD	NRW	@ELL	PRM	@BAR	@TUS	<HUD,COP,NRT,HGH,TAL>
+    ### PRM:	NRW	HUD	NRT	@PER	@COP	@ELL	<TAL,TUS,BAR,HGH,NRD>
+    ### TAL:	@HUD	NRT	@BAR	HGH	NRD	@COP	<PRM,TUS,NRW,PER,ELL>
+    ### TUS:	@ELL	COP	@HGH	BAR	@NRW	PER	<HUD,PRM,NRT,TAL,NRD>
 ]
 
 teams = teams_2020
@@ -514,6 +551,7 @@ def get_overrides_by_week(week):
     return overrides_by_week.get(week) or []
 
 number_weeks = 6
+enable_consecutive_check = False
 
 def try_make_b_team_schedule():
     """ Generate the schedule for the B division, returning an instance
@@ -614,7 +652,7 @@ def make_schedules():
         league schedules that satisfies all constraints.
     """
     max_outer_loop_iterations = 1000000
-    max_rebalance_home_away_iterations = 100000  #500000
+    max_rebalance_home_away_iterations = 5 * ((len(teams) * number_weeks) ** 2) #500000
     for i in range(max_outer_loop_iterations):
         if debug and (i % 1000 == 0):
             print("-", end="")
@@ -624,6 +662,14 @@ def make_schedules():
             print("--- MADE DIVISION SCHEDULE ---")
             b_schedule.print_schedule()
 
+            # Special requests
+            if not b_schedule.contains_matchup('TAL', 'PER'):
+                print("Missing Tallmadge vs Perry. Will try again (attempt %s)" % i)
+                continue
+            if not b_schedule.contains_matchup('NRT', 'COP'):
+                print("Missing Norton vs Copley. Will try again (attempt %s)" % i)
+                continue
+
             # Now try to balance home game count for each team
             print("Now attempting to balance...")
             balanced = b_schedule.rebalance_home_away(max_rebalance_home_away_iterations)
@@ -632,7 +678,7 @@ def make_schedules():
             b_schedule.print_schedule()
 
             if not balanced:
-                print("Unable to balance teams.  Will try again.")
+                print("Unable to balance teams.  Will try again (attempt %s)" % i)
                 continue
 
             # print("B Division is balanced. Now trying for C Division (with no Tallmadge Gold)...")
@@ -661,6 +707,8 @@ def make_schedules():
         except IterationError, err:
             if str(err) and debug:
                 print('Error: %s' %err)
+            elif str(err):
+                print("Unable to find optimal schedule.  Will try again (attempt %s)" % i)
             continue
     else:
         print("")
