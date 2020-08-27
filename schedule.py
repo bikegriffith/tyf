@@ -208,7 +208,7 @@ class LeagueSchedule:
 
     def rebalance_home_away(self, max_iterations):
         any_team_unbalanced = False
-        game_balance = number_weeks / 2  # XXX: doesn't support odd schedules
+        game_balance = number_weeks / 2.0  # XXX: doesn't support odd schedules
 
         for i in range(max_iterations):
             if debug and (i % 1000 == 0):
@@ -220,7 +220,7 @@ class LeagueSchedule:
                 count = self.home_game_count_for_team(team)
 
                 # Equal number of home/away ... now check more complex requirements
-                if count == game_balance: # XXX: Parma doesn't matter
+                if count == game_balance or (number_weeks % 2 is 1 and math.ceil(game_balance) in [count, count+1]):
                     # Cannot not have more than 3 consecutive home/away
                     if enable_consecutive_check:
                         max_consecutive = self.max_consecutive_home_or_away_games(team)
@@ -235,9 +235,9 @@ class LeagueSchedule:
                     # TAG/TAB cannot be both Home in same week (shared field)
                     if team == "TAG" or team == "TAB":
                         g_home_weeks = map(lambda g: g.week,
-                                filter(lambda g: g.home.abbrev == 'TAG', self.games_for_team('TAG')))
+                                filter(lambda g: g.home.abbrev == 'TAG' and not g.is_bye, self.games_for_team('TAG')))
                         b_home_weeks = map(lambda g: g.week,
-                                filter(lambda g: g.home.abbrev == 'TAB', self.games_for_team('TAB')))
+                                filter(lambda g: g.home.abbrev == 'TAB' and not g.is_bye, self.games_for_team('TAB')))
                         shared_weeks = list(set(g_home_weeks) & set(b_home_weeks))
                         if len(shared_weeks) > 0:
                             # print("Fixing TAG/TAB sharing home in weeks %s" % shared_weeks)
@@ -248,19 +248,36 @@ class LeagueSchedule:
                             g = self.game_for_team_in_week(rand_teams[0], shared_weeks[0])
                             if not g.forced:
                                 g.swap()
+
+                    # HUD/HU2 cannot be both Home in same week (shared field)
+                    if team == "HUD" or team == "HU2":
+                        g_home_weeks = map(lambda g: g.week,
+                                filter(lambda g: g.home.abbrev == 'HUD' and not g.is_bye, self.games_for_team('HUD')))
+                        b_home_weeks = map(lambda g: g.week,
+                                filter(lambda g: g.home.abbrev == 'HU2' and not g.is_bye, self.games_for_team('HU2')))
+                        shared_weeks = list(set(g_home_weeks) & set(b_home_weeks))
+                        if len(shared_weeks) > 0:
+                            # print("Fixing TAG/TAB sharing home in weeks %s" % shared_weeks)
+                            any_team_unbalanced = True
+                            rand_teams = ['HUD', 'HU2']
+                            random.shuffle(rand_teams)
+                            random.shuffle(shared_weeks)
+                            g = self.game_for_team_in_week(rand_teams[0], shared_weeks[0])
+                            if not g.forced:
+                                g.swap()
                     continue
 
                 # More or less than 4 home games ... try to rebalance
                 any_team_unbalanced = True
                 if count > math.ceil(game_balance):
-                    for i in range(count - game_balance):
+                    for i in range(count - int(math.ceil(game_balance))):
                         g = self.pick_random_home_game_for_team(team)
                         if not g.forced:
                             g.swap()
-                if count < math.floor(game_balance): # XXX: Parma doesn't matter
+                if count < math.floor(game_balance):
                     for i in range(count):
                         g = self.pick_random_away_game_for_team(team)
-                        if not g.forced:
+                        if g and not g.forced:
                             g.swap()
 
             if not any_team_unbalanced:
@@ -467,6 +484,37 @@ overrides_byfc_south_2020 = [
 #     6   10/17   Perry away
 #     P1  10/24
 #
+# Updates 8/26 (TODO)
+#     Make sure we don’t play Hudson. This guys too many rules 
+#     Perry AWAY 10/3
+#     Ok... 
+#     Highland has 1 BVarsity, 2 BJV’s,
+#     Parma has 1 BV, call highland black, and their second BJV green. Highland BJV will travel with Parma BV to every game.
+#     Try to avoid Parma vs Highland as then Highlands JV’s would have to play each other and their director not in love with that idea..
+#     D teams I’ve already texted you... 
+#     Hudson, 2 BV and BJV, 
+#     Copley one at B, C, 2 Ds 
+#
+#     Hudson and Parma both have very young CJV’s, bad 4th grade classes.
+#     So, we decided, during the bye weeks, lets say tallmadge has a bye, if our CJV would like to play them, they can schedule that amongst directors. Not your problem 
+#
+#     Norton, Tallmadge, Barberton, Tuslaw, Ellet, Perry, Northwest, all have one team, with a varsity and jv at every level 
+#     Nordonia, standard one of all B, C, D
+#
+#     Sorry excluding D. I’m done texting you sorry. Sent D Teams separate. Should be the same.
+#
+#     B Division - 13 teams
+#       Hudson 1
+#       Hudson 2
+#       Parma (But their JV is actually Highland's 2nd JV team)
+#       * Avoid Parma vs. Highland
+#
+#     C Division - 12 teams
+#
+#     D Division - 8 teams
+#
+#       
+
 teams_2020 = dict(
     BAR=Team('BAR', fields[9]),
     ELL=Team('ELL', fields[1]),
@@ -482,40 +530,52 @@ teams_2020 = dict(
     HUD=Team('HUD', Field('Hudson')),
 )
 
+mode = 'B'
+if mode is 'B':
+    teams_2020['HU2'] = Team('HU2', Field('Hudson'))
+    teams_2020['BYE'] = Team('BYE', Field('*BYE*'))
+week_offset = 1 if mode is 'B' else 0
+number_weeks = 7 if mode is 'B' else 6
+enable_consecutive_check = False
+
 overrides_2020 = [
+    dict(team='HUD', avoid_opponent='HU2'),
+    dict(team='PRM', avoid_opponent='HGH'),
+
     #dict(team='TAL', avoid_opponent='PRM'),
-    dict(team='TAL', week=1, force_away=True, force_opponent='HUD'),
-    dict(team='TAL', week=3, force_away=True, force_opponent='NRD'),
-    dict(team='TAL', week=4, force_away=True, force_opponent='PER'),
+    dict(team='TAL', week=1, force_opponent='BYE') if mode is 'B' else None,
+    dict(team='TAL', week=1+week_offset, force_away=True, force_opponent='HUD'),
+    dict(team='TAL', week=3+week_offset, force_away=True, force_opponent='NRD'),
+    dict(team='TAL', week=4+week_offset, force_away=True, force_opponent='PER'),
 
     # Satistfy 2 team requests
-    dict(team='COP', week=1, force_away=True, force_opponent='TUS'),
-    dict(team='PER', week=1, force_away=True, force_opponent='NRW'),
+    dict(team='COP', week=1+week_offset, force_away=True, force_opponent='TUS'),
+    dict(team='PER', week=1+week_offset, force_away=True, force_opponent='NRW'),
 
     # Nordonia
-    dict(team='NRD', week=1, force_away=True, avoid_opponents_this_week=['PRM']),
-    dict(team='NRD', week=2, force_home=True),
-    #dict(team='NRD', week=3, force_home=True, avoid_opponents_this_week=['PER']),
-    dict(team='NRD', week=4, force_home=True, avoid_opponents_this_week=['COP', 'PER']),
-    dict(team='NRD', week=5, force_away=True, avoid_opponents_this_week=['PRM']),
-    dict(team='NRD', week=6, force_away=True, avoid_opponents_this_week=['PER', 'PRM']),
+    dict(team='NRD', week=1+week_offset, force_away=True, avoid_opponents_this_week=['PRM']),
+    dict(team='NRD', week=2+week_offset, force_home=True),
+    #dict(team='NRD', week=3+week_offset, force_home=True, avoid_opponents_this_week=['PER']),
+    dict(team='NRD', week=4+week_offset, force_home=True, avoid_opponents_this_week=['COP', 'PER']),
+    dict(team='NRD', week=5+week_offset, force_away=True, avoid_opponents_this_week=['PRM']),
+    dict(team='NRD', week=6+week_offset, force_away=True, avoid_opponents_this_week=['PER', 'PRM']),
 
     # Perry
-    dict(team='PER', week=2, force_away=True, avoid_opponents_this_week=['NRT', 'COP', 'PRM']),
-    dict(team='PER', week=3, force_home=True, avoid_opponents_this_week=['NRD']),
-    #dict(team='PER', week=4, force_home=True, avoid_opponents_this_week=['NRD', 'COP']),
-    dict(team='PER', week=5, force_home=True, avoid_opponents_this_week=[]),
-    dict(team='PER', week=6, force_away=True, avoid_opponents_this_week=['NRD', 'PRM']),
+    dict(team='PER', week=2+week_offset, force_away=True, avoid_opponents_this_week=['NRT', 'COP', 'PRM']),
+    dict(team='PER', week=3+week_offset, force_home=True, avoid_opponents_this_week=['NRD']),
+    #dict(team='PER', week=4+week_offset, force_home=True, avoid_opponents_this_week=['NRD', 'COP']),
+    dict(team='PER', week=5+week_offset, force_home=True, avoid_opponents_this_week=[]),
+    dict(team='PER', week=6+week_offset, force_away=True, avoid_opponents_this_week=['NRD', 'PRM']),
 
     # Norton
-    dict(team='NRT', week=2, force_away=True, avoid_opponents_this_week=['COP', 'PER', 'PRM']),
+    dict(team='NRT', week=2+week_offset, force_away=True, avoid_opponents_this_week=['COP', 'PER', 'PRM']),
 
     # Copley
-    dict(team='COP', week=2, force_away=True, avoid_opponents_this_week=['NRT', 'PER', 'PRM']),
-    dict(team='COP', week=3, force_away=True, avoid_opponents_this_week=['PRM']),
-    dict(team='COP', week=4, force_home=True, avoid_opponents_this_week=['NRD', 'PER']),
-    dict(team='COP', week=5, force_home=True, avoid_opponents_this_week=[]),
-    dict(team='COP', week=6, force_home=True, avoid_opponents_this_week=[]),
+    dict(team='COP', week=2+week_offset, force_away=True, avoid_opponents_this_week=['NRT', 'PER', 'PRM']),
+    dict(team='COP', week=3+week_offset, force_away=True, avoid_opponents_this_week=['PRM']),
+    dict(team='COP', week=4+week_offset, force_home=True, avoid_opponents_this_week=['NRD', 'PER']),
+    dict(team='COP', week=5+week_offset, force_home=True, avoid_opponents_this_week=[]),
+    dict(team='COP', week=6+week_offset, force_home=True, avoid_opponents_this_week=[]),
 
     #dict(team='NRT', week=5, force_home=True), #<-- maybe not a thing anymore
 
@@ -560,13 +620,13 @@ overrides_by_week = {}
 def get_overrides_by_week(week):
     if len(overrides_by_week.keys()) == 0:
         for override in overrides:
+            if override is None:
+                continue
             if overrides_by_week.get(override.get('week')) is None:
                 overrides_by_week[override.get('week')] = []
             overrides_by_week[override.get('week')].append(override)
     return overrides_by_week.get(week) or []
 
-number_weeks = 6
-enable_consecutive_check = False
 
 def try_make_b_team_schedule():
     """ Generate the schedule for the B division, returning an instance
@@ -618,7 +678,7 @@ def try_make_b_team_schedule():
                 continue
             try:
                 opponent = pick_random_opponent(team, week_teams, schedule)
-                schedule.add(Game(team, opponent, week))
+                schedule.add(Game(team, opponent, week, is_bye=(team.abbrev is 'BYE' or opponent.abbrev is 'BYE')))
                 del week_teams[team.abbrev]
                 del week_teams[opponent.abbrev]
             except NoAvailableOpponnentError:
@@ -626,7 +686,7 @@ def try_make_b_team_schedule():
 
     # Validate opponent avoids
     for override in overrides:
-        if override.get('avoid_opponent'):
+        if override is not None and override.get('avoid_opponent'):
             if schedule.contains_matchup(override['team'], override['avoid_opponent']):
                 raise IterationError('%s and %s should not play' % (override['team'], override['avoid_opponent']))
 
