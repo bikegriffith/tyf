@@ -28,9 +28,12 @@ class Field:
 class Team:
     """ Represents a team """
 
-    def __init__(self, abbrev, home_field):
+    def __init__(self, abbrev, division):
         self.abbrev = abbrev
-        self.home_field = home_field
+        self.division = division 
+
+    def is_pseudo_team_bye(self):
+        return self.abbrev.startswith('BY') #BYE
 
     def __repr__(self):
         return self.abbrev
@@ -77,13 +80,13 @@ class LeagueSchedule:
         teams.sort(key=lambda t: t.abbrev)
         for team in teams:
             ta = team.abbrev
-            if ta == 'BYE':
+            if team.is_pseudo_team_bye():
                 continue
             opponents = [self.opponent_in_week(ta, i+1) for i in range(self.num_weeks)]
             unplayed = list(set(t for t in self.teams.keys() if t != ta) - set(o.lstrip('@') for o in opponents))
             line = "%s:\t" % ta
             for opponent in opponents:
-                if opponent == 'BYE':
+                if opponent.startswith('BY'):
                     opponent = '*BYE*'
                 line += "%s\t" % opponent
             line += "<" + ",".join(unplayed) + ">"
@@ -180,11 +183,11 @@ class LeagueSchedule:
                 continue
             if g.away is not None and g.away.abbrev == abbrev:
                 if g.is_bye:
-                    return g.home.abbrev #'*BYE*'
+                    return '*BYE*'
                 return '@' + g.home.abbrev
             if g.home is not None and g.home.abbrev == abbrev:
                 if g.is_bye:
-                    return g.away.abbrev #'*BYE*'
+                    return '*BYE*'
                 return g.away.abbrev
         return None
 
@@ -193,6 +196,12 @@ class LeagueSchedule:
             if (g.away.abbrev == abbrev or g.home.abbrev == abbrev) and g.is_bye:
                 return True
         return False
+
+    def every_team_has_one_bye(self):
+        for team in teams:
+            if not self.has_bye(team):
+                return False
+        return True
 
     def contains_matchup(self, abbrev1, abbrev2, mode=None):
         for g in self.games:
@@ -285,9 +294,26 @@ class LeagueSchedule:
         except IndexError:
             return None
 
+    def max_cross_over_games_for_any_team(self):
+        max_value = 0
+        for team in teams:
+            count = len([
+                g for g in self.games_for_team(team)
+                if not g.is_bye and g.home.division != g.away.division
+                ])
+            if count > max_value:
+                max_value = count
+            if count > 4:
+                print("%s-%d, " % (team, count), end="")
+        return max_value
+
+
+
     def rebalance_home_away(self, max_iterations):
         any_team_unbalanced = False
         game_balance = number_weeks / 2.0  # XXX: doesn't support odd schedules
+        #balanced_home_counts = [int(game_balance)]
+        balanced_home_counts = [int(math.ceil(game_balance)), int(math.floor(game_balance))]
 
         for i in range(max_iterations):
             if debug and (i % 1000 == 0):
@@ -309,10 +335,8 @@ class LeagueSchedule:
 
                 #print("%s - %s - %s" % (team, home_count, (home_count in [2, 3, 4])))
 
-                balanced_home_counts = [int(game_balance)]
-
-                if self.contains_matchup(team, 'PRM'):
-                    balanced_home_counts = [int(math.ceil(game_balance)), int(math.floor(game_balance))]
+                #if self.contains_matchup(team, 'PRM'):
+                #    balanced_home_counts = [int(math.ceil(game_balance)), int(math.floor(game_balance))]
 
                 # Equal number of home/away ... now check more complex requirements
                 if home_count in balanced_home_counts:
@@ -445,23 +469,29 @@ class LeagueSchedule:
 
 
 teams_2021_b_big = dict(
-    BAR=Team('BAR', Field('Barberton')),
-    ELL=Team('ELL', Field('Ellet')),
-    NRT=Team('NRT', Field('Norton')),
-    TAB=Team('TAB', Field('Tallmadge Blue')),
-    TAG=Team('TAG', Field('Tallmadge Gold')),
-    PER=Team('PER', Field('Perry')),
-    STR=Team('STR', Field('Streetsboro')),
-    BY1=Team('BY1', Field('*BYE 1*')),
-    BY2=Team('BY2', Field('*BYE 2*')),
-    BY3=Team('BY3', Field('*BYE 2*')),
-    BY4=Team('BY4', Field('*BYE*')),
-    BY5=Team('BY5', Field('*BYE*')),
+    # Big
+    BAR=Team('BAR', 'BB'),
+    ELL=Team('ELL', 'BB'),
+    NRT=Team('NRT', 'BB'),
+    TAB=Team('TAB', 'BB'),
+    TAG=Team('TAG', 'BB'),
+    PER=Team('PER', 'BB'),
+    STR=Team('STR', 'BB'),
+
+    # Small
+    SPR=Team('SPR', 'BS'),
+    COV=Team('COV', 'BS'),
+    WOD=Team('WOD', 'BS'),
+    CHI=Team('CHI', 'BS'),
+    NWR=Team('NWR', 'BS'),
+    TUS=Team('TUS', 'BS'),
+    MAN=Team('MAN', 'BS'),
+
+    # Byes
+    BY1=Team('BY1', '-'),
+    BY2=Team('BY2', '-'),
 )
 teams_2021_b_sm = dict(
-    NRW=Team('NRW', Field('Northwest')),
-    TUS=Team('TUS', Field('Tuslaw')),
-    BYE=Team('BYE', Field('*BYE*')),
 )
 
 overrides_2021_b_big = [
@@ -477,83 +507,37 @@ overrides_2021_b_big = [
 #     9   10/16
 #     P1  10/23
 
+    # Big
     dict(team='PER', week=1, force_away=True),
     dict(team='PER', week=3, force_away=True, force_opponent='BAR'),
     dict(team='TAB', week=5, force_home=True),
     dict(team='TAG', week=5, force_home=True),
     dict(team='BAR', week=6, force_home=True),
     dict(team='NRT', week=7, force_home=True, force_opponent='BAR'),
-    dict(team='BAR', week=8, force_home=True),
+    #dict(team='BAR', week=8, force_home=True),
+
+    # Small
+    dict(team='CHI', week=1, force_home=True),
+    dict(team='CHI', week=5, force_home=True),
+    dict(team='CHI', week=6, force_home=True),
+    dict(team='CHI', week=7, force_home=True),
+    dict(team='NWR', week=2, force_home=True),
+    dict(team='TUS', week=2, force_home=True),
+    dict(team='TUS', week=4, force_home=True),
+    #dict(team='TUS', week=8, force_home=True),
+
+    # WTF
+    dict(team='MAN', week=2, force_home=True),
+    dict(team='MAN', week=4, force_home=True),
+    dict(team='MAN', week=6, force_home=True),
+    dict(team='MAN', week=8, force_home=True),
+
+    # Other requests
+    dict(team='TAG', avoid_opponent='TAB'),
+
+    # Byes
+    # TODO: force pick 2 teams each week (1 from big, 1 from small)
     
-]
-
-teams_2021_c = dict(
-    BAR=Team('BAR', Field('Barberton')),
-    ELL=Team('ELL', Field('Ellet')),
-    NRW=Team('NRW', Field('Northwest')),
-    NRT=Team('NRT', Field('Norton')),
-    TAL=Team('TAL', Field('Tallmadge')),
-    TUS=Team('TUS', Field('Tuslaw')),
-    PER=Team('PER', Field('Perry')),
-    COP=Team('COP', Field('Copley')),
-    NRD=Team('NRD', Field('Nordonia')),
-    HGH=Team('HGH', Field('Highland')),
-)
-
-overrides_2021_c = [
-    dict(team='NRT', week=1, force_home=True, avoid_opponents_this_week=['NRT', 'HGH', 'NRW', 'COP', 'BAR',]),
-    dict(team='HGH', week=1, force_home=True, avoid_opponents_this_week=['NRT', 'HGH', 'NRW', 'COP', 'BAR',]),
-    dict(team='NRW', week=1, force_home=True, avoid_opponents_this_week=['NRT', 'HGH', 'NRW', 'COP', 'BAR',]),
-    dict(team='COP', week=1, force_home=True, avoid_opponents_this_week=['NRT', 'HGH', 'NRW', 'COP', 'BAR',]),
-    dict(team='BAR', week=1, force_home=True, avoid_opponents_this_week=['NRT', 'HGH', 'NRW', 'COP', 'BAR',]),
-
-
-    dict(team='TUS', week=2, force_home=True, avoid_opponents_this_week=['TUS', 'COP', 'ELL', 'NRD', 'BAR',]),
-    dict(team='COP', week=2, force_home=True, avoid_opponents_this_week=['TUS', 'COP', 'ELL', 'NRD', 'BAR',]),
-    dict(team='ELL', week=2, force_home=True, avoid_opponents_this_week=['TUS', 'COP', 'ELL', 'NRD', 'BAR',]),
-    dict(team='NRD', week=2, force_home=True, avoid_opponents_this_week=['TUS', 'COP', 'ELL', 'NRD', 'BAR',]),
-    #dict(team='BAR', week=2, force_home=True, avoid_opponents_this_week=['TUS', 'COP', 'ELL', 'NRD', 'BAR',]),
-
-
-    dict(team='TUS', week=3, force_home=True, avoid_opponents_this_week=['TUS', 'NRW', 'BAR', 'PER', 'NRD',]),
-    dict(team='NRW', week=3, force_home=True, avoid_opponents_this_week=['TUS', 'NRW', 'BAR', 'PER', 'NRD',]),
-    dict(team='BAR', week=3, force_home=True, avoid_opponents_this_week=['TUS', 'NRW', 'BAR', 'PER', 'NRD',]),
-    dict(team='PER', week=3, force_home=True, avoid_opponents_this_week=['TUS', 'NRW', 'BAR', 'PER', 'NRD',]),
-    dict(team='NRD', week=3, force_home=True, avoid_opponents_this_week=['TUS', 'NRW', 'BAR', 'PER', 'NRD',]),
-
-
-    dict(team='HGH', week=4, force_home=True, avoid_opponents_this_week=['HGH', 'TAL', 'TUS', 'NRT',]),
-    dict(team='TAL', week=4, force_home=True, avoid_opponents_this_week=['HGH', 'TAL', 'TUS', 'NRT',]),
-    dict(team='TUS', week=4, force_home=True, avoid_opponents_this_week=['HGH', 'TAL', 'TUS', 'NRT',]),
-    dict(team='NRT', week=4, force_home=True, avoid_opponents_this_week=['HGH', 'TAL', 'TUS', 'NRT',]),
-
-
-    dict(team='PER', week=5, force_home=True, avoid_opponents_this_week=['PER', 'ELL', 'NRT', 'TAL',]),
-    dict(team='ELL', week=5, force_home=True, avoid_opponents_this_week=['PER', 'ELL', 'NRT', 'TAL',]),
-    dict(team='NRT', week=5, force_home=True, avoid_opponents_this_week=['PER', 'ELL', 'NRT', 'TAL',]),
-    dict(team='TAL', week=5, force_home=True, avoid_opponents_this_week=['PER', 'ELL', 'NRT', 'TAL',]),
-
-
-    dict(team='NRW', week=6, force_home=True, avoid_opponents_this_week=['NRW', 'HGH', 'TAL', 'NRD', 'BAR',]),
-    dict(team='HGH', week=6, force_home=True, avoid_opponents_this_week=['NRW', 'HGH', 'TAL', 'NRD', 'BAR',]),
-    dict(team='TAL', week=6, force_home=True, avoid_opponents_this_week=['NRW', 'HGH', 'TAL', 'NRD', 'BAR',]),
-    dict(team='NRD', week=6, force_home=True, avoid_opponents_this_week=['NRW', 'HGH', 'TAL', 'NRD', 'BAR',]),
-    dict(team='BAR', week=6, force_home=True, avoid_opponents_this_week=['NRW', 'HGH', 'TAL', 'NRD', 'BAR',]),
-]
-
-
-teams_2021_d = dict(
-    BAR=Team('BAR', Field('Barberton')),
-    ELL=Team('ELL', Field('Ellet')),
-    NRT=Team('NRT', Field('Norton')),
-    TAL=Team('TAL', Field('Tallmadge')),
-    COP=Team('COP', Field('Copley')),
-    CO2=Team('CO2', Field('Copley 2')),  # Plan to 
-    NRD=Team('NRD', Field('Nordonia')),
-    HGH=Team('HGH', Field('Highland')),
-)
-
-overrides_2021_d = [
 ]
 
 
@@ -626,6 +610,8 @@ def try_make_b_team_schedule():
         for abbrev, team in week_teams.items():
             if abbrev not in week_teams:
                 continue
+            if team.is_pseudo_team_bye():
+                continue
             try:
                 opponent = pick_random_opponent(team, week_teams, schedule)
 
@@ -645,15 +631,16 @@ def try_make_b_team_schedule():
                 raise IterationError('%s and %s should not play' % (override['team'], override['avoid_opponent']))
 
     # Validate Tallmadge 2 teams not sharing field
-    for week in range(number_weeks):
-        week = week + 1
-        if schedule.is_home_in_week('TAG', week) and schedule.is_home_in_week('TAB', week):
-            raise IterationError('TAG and TAB both home in week %s' % week)
+    # XXX: Manual check
+    #for week in range(number_weeks):
+    #    week = week + 1
+    #    if schedule.is_home_in_week('TAG', week) and schedule.is_home_in_week('TAB', week):
+    #        raise IterationError('TAG and TAB both home in week %s' % week)
 
     return schedule
 
 def _is_bye(team, opponent):
-    return team.abbrev is 'BYE' or opponent.abbrev is 'BYE' or team.abbrev.startswith('BY') or opponent.abbrev.startswith('BY')
+    return team.is_pseudo_team_bye() or opponent.is_pseudo_team_bye()
 
 
 pick_random_opponent_counter = 0
@@ -674,6 +661,9 @@ def pick_random_opponent(team, eligible_teams, schedule, avoid_teams=None):
             continue
         if schedule.already_played(team, t):
             continue
+        # HACK: XXX: checking for double bye...
+        if t.is_pseudo_team_bye() and schedule.has_bye(team.abbrev):
+            continue
         return t
     raise NoAvailableOpponnentError
 
@@ -683,8 +673,8 @@ def make_schedules():
     """ Run an iterative constraint solver to attempt to generate a set of
         league schedules that satisfies all constraints.
     """
-    max_outer_loop_iterations = 5000000
-    max_rebalance_home_away_iterations = 5 * ((len(teams) * number_weeks) ** 2) #500000
+    max_outer_loop_iterations = 15000000
+    max_rebalance_home_away_iterations = 50 * ((len(teams) * number_weeks) ** 2) #500000
     for i in range(max_outer_loop_iterations):
         if debug and (i % 1000 == 0):
             print("-", end="")
@@ -702,6 +692,17 @@ def make_schedules():
             #if not b_schedule.contains_matchup('NRT', 'COP'):
             #    print("Missing Norton vs Copley. Will try again (attempt %s)" % i)
             #    continue
+            #
+
+            # Everyone must have 1 and only 1 bye:
+            if not b_schedule.every_team_has_one_bye():
+                print("Missing bye for team")
+                continue
+ 
+            # Now verify in division vs. cross-over count
+            if b_schedule.max_cross_over_games_for_any_team() > 4:
+                print("Too many cross-over games. Will try again (attempt %s)" % i)
+                continue
 
             # Now try to balance home game count for each team
             print("Now attempting to balance...")
@@ -745,7 +746,8 @@ def make_schedules():
             if str(err) and debug:
                 print('Error: %s' %err)
             elif str(err):
-                print("Unable to find optimal schedule.  Will try again (attempt %s)" % i)
+                # print("Unable to find optimal schedule.  Will try again (attempt %s)" % i)
+                print(".", end="")
             continue
     else:
         print("")
