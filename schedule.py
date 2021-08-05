@@ -46,7 +46,7 @@ class Game:
         self.away = away
         self.week = week
         self.forced = forced
-        self.is_bye = is_bye or home.abbrev is 'BYE' or away.abbrev is 'BYE'
+        self.is_bye = is_bye or _is_bye(home, away)
 
         if self.home.abbrev == 'PRM':
             self.swap()
@@ -180,11 +180,11 @@ class LeagueSchedule:
                 continue
             if g.away is not None and g.away.abbrev == abbrev:
                 if g.is_bye:
-                    return '*BYE*'
+                    return g.home.abbrev #'*BYE*'
                 return '@' + g.home.abbrev
             if g.home is not None and g.home.abbrev == abbrev:
                 if g.is_bye:
-                    return '*BYE*'
+                    return g.away.abbrev #'*BYE*'
                 return g.away.abbrev
         return None
 
@@ -296,9 +296,14 @@ class LeagueSchedule:
 
             any_team_unbalanced = False
             for team in teams:
-                # Parma wrench
-                if team in ('PRM', 'BYE'):
+                # Byes don't matter
+                if team.startswith('BY'): #BYE
                     continue
+                # Parma wrench
+                #if team in ('PRM', 'BYE'):
+                #    continue
+                #if team in ('COP2'): # COP2 in D Division
+                #    continue
 
                 home_count = int(self.home_game_count_for_team(team))
 
@@ -438,7 +443,51 @@ class LeagueSchedule:
 #
 #       
 
-teams_2020_c = dict(
+
+teams_2021_b_big = dict(
+    BAR=Team('BAR', Field('Barberton')),
+    ELL=Team('ELL', Field('Ellet')),
+    NRT=Team('NRT', Field('Norton')),
+    TAB=Team('TAB', Field('Tallmadge Blue')),
+    TAG=Team('TAG', Field('Tallmadge Gold')),
+    PER=Team('PER', Field('Perry')),
+    STR=Team('STR', Field('Streetsboro')),
+    BY1=Team('BY1', Field('*BYE 1*')),
+    BY2=Team('BY2', Field('*BYE 2*')),
+    BY3=Team('BY3', Field('*BYE 2*')),
+    BY4=Team('BY4', Field('*BYE*')),
+    BY5=Team('BY5', Field('*BYE*')),
+)
+teams_2021_b_sm = dict(
+    NRW=Team('NRW', Field('Northwest')),
+    TUS=Team('TUS', Field('Tuslaw')),
+    BYE=Team('BYE', Field('*BYE*')),
+)
+
+overrides_2021_b_big = [
+# Weeks
+#     1   8/21  - Perry away
+#     2   8/28 
+#     3   9/4   - Barberton home (HS), Perry away
+#     4   9/11
+#     5   9/18  - Tallmadge home (HS - both), 
+#     6   9/25  - Barberton home (HS)
+#     7   10/2  - Barberton @ Norton
+#     8   10/9  - Barberton home (HS)
+#     9   10/16
+#     P1  10/23
+
+    dict(team='PER', week=1, force_away=True),
+    dict(team='PER', week=3, force_away=True, force_opponent='BAR'),
+    dict(team='TAB', week=5, force_home=True),
+    dict(team='TAG', week=5, force_home=True),
+    dict(team='BAR', week=6, force_home=True),
+    dict(team='NRT', week=7, force_home=True, force_opponent='BAR'),
+    dict(team='BAR', week=8, force_home=True),
+    
+]
+
+teams_2021_c = dict(
     BAR=Team('BAR', Field('Barberton')),
     ELL=Team('ELL', Field('Ellet')),
     NRW=Team('NRW', Field('Northwest')),
@@ -451,36 +500,7 @@ teams_2020_c = dict(
     HGH=Team('HGH', Field('Highland')),
 )
 
-overrides_2020_c = [
-    # 1 - 9/12
-    # 2 - 9/19
-    # 3 - 9/26
-    # 4 - 10/3
-    # 5 - 10/10
-    # 6 - 10/17
-    # dict(team='TAL', week=3, force_away=True, force_opponent='NRD'),
-
-    # # Satistfy 2 team requests
-    # dict(team='PER', week=1, force_away=True, force_opponent='NRW'),
-
-    # # Nordonia
-    # dict(team='NRD', week=1, force_away=True, avoid_opponents_this_week=[]),
-    # dict(team='NRD', week=2, force_home=True),
-    # dict(team='NRD', week=4, force_home=True, avoid_opponents_this_week=['PER']),
-    # dict(team='NRD', week=5, force_away=True, avoid_opponents_this_week=[]),
-    # dict(team='NRD', week=6, force_away=True, avoid_opponents_this_week=['PER']),
-
-    # # Perry
-    # dict(team='PER', week=2, force_away=True, avoid_opponents_this_week=['NRT']),
-    # dict(team='PER', week=3, force_home=True, avoid_opponents_this_week=['NRD']),
-    # dict(team='PER', week=4, force_away=True, avoid_opponents_this_week=['NRD']),
-    # dict(team='PER', week=5, force_home=True, avoid_opponents_this_week=[]),
-    # dict(team='PER', week=6, force_away=True, avoid_opponents_this_week=['NRD']),
-
-    # # Norton
-    # dict(team='NRT', week=2, force_away=True, avoid_opponents_this_week=['PER']),
-
-
+overrides_2021_c = [
     dict(team='NRT', week=1, force_home=True, avoid_opponents_this_week=['NRT', 'HGH', 'NRW', 'COP', 'BAR',]),
     dict(team='HGH', week=1, force_home=True, avoid_opponents_this_week=['NRT', 'HGH', 'NRW', 'COP', 'BAR',]),
     dict(team='NRW', week=1, force_home=True, avoid_opponents_this_week=['NRT', 'HGH', 'NRW', 'COP', 'BAR',]),
@@ -522,67 +542,25 @@ overrides_2020_c = [
 ]
 
 
-teams_2020_b = dict(
+teams_2021_d = dict(
     BAR=Team('BAR', Field('Barberton')),
     ELL=Team('ELL', Field('Ellet')),
-    NRW=Team('NRW', Field('Northwest')),
     NRT=Team('NRT', Field('Norton')),
     TAL=Team('TAL', Field('Tallmadge')),
-    TUS=Team('TUS', Field('Tuslaw')),
-    PER=Team('PER', Field('Perry')),
     COP=Team('COP', Field('Copley')),
+    CO2=Team('CO2', Field('Copley 2')),  # Plan to 
     NRD=Team('NRD', Field('Nordonia')),
     HGH=Team('HGH', Field('Highland')),
-    PRM=Team('PRM', Field('Parma')),
-    BYE=Team('BYE', Field('*BYE*')),
 )
 
-overrides_2020_b = [
-    # 1 - 9/12
-    # 2 - 9/19
-    # 3 - 9/26
-    # 4 - 10/3
-    # 5 - 10/10
-    # 6 - 10/17
-    # 7 - 10/24
-    dict(team='PRM', avoid_opponent='HGH'),
-
-    dict(team='PER', week=6, force_opponent='BYE', is_bye=True),
-
-    # B-team Byes week 1
-    #dict(team='TAL', week=1, force_opponent='BYE'),
-    #dict(team='TUS', week=1, force_opponent='NRD', is_bye=True),
-    #dict(team='TUS', avoid_opponent='BYE'),
-    #dict(team='NRD', avoid_opponent='BYE'),
-
-    dict(team='TAL', week=3, force_away=True, force_opponent='NRD'),
-    #dict(team='TAL', week=4, force_away=True, force_opponent='PER'),
-
-    # Satistfy 2 team requests
-    dict(team='PER', week=1, force_away=True, force_opponent='NRW'),
-    dict(team='NRT', week=2, force_away=True, force_opponent='COP'),
-
-    # Nordonia
-    #dict(team='NRD', week=1, force_away=True, avoid_opponents_this_week=['PRM']),
-    #dict(team='NRD', week=2, force_home=True),
-    dict(team='NRD', week=4, force_home=True, avoid_opponents_this_week=['PER']),
-    #dict(team='NRD', week=5, force_away=True, avoid_opponents_this_week=['PRM']),
-    #dict(team='NRD', week=6, force_away=True, avoid_opponents_this_week=['PER', 'PRM']),
-
-    # Perry
-    dict(team='PER', week=2, force_away=True, avoid_opponents_this_week=['NRT', 'PRM']),
-    dict(team='PER', week=3, force_home=True, avoid_opponents_this_week=[]),
-    dict(team='PER', week=4, force_away=True, avoid_opponents_this_week=['NRT', 'PRM']),
-    dict(team='PER', week=5, force_home=True, avoid_opponents_this_week=[]),
-    #dict(team='PER', week=6, force_away=True, avoid_opponents_this_week=['PRM']),
-    dict(team='PER', week=7, force_home=True, avoid_opponents_this_week=[]),
+overrides_2021_d = [
 ]
 
 
-number_weeks = 6
+number_weeks = 9
 enable_consecutive_check = False
-teams = teams_2020_c
-overrides = overrides_2020_c
+teams = teams_2021_b_big
+overrides = overrides_2021_b_big
 overrides_by_week = {}
 
 def get_overrides_by_week(week):
@@ -611,44 +589,52 @@ def try_make_b_team_schedule():
         week_teams = teams.copy()
 
         for override in get_overrides_by_week(week):
-            if override.get('force_opponent'):
-                team = teams[override['team']]
-                opponent = teams[override['force_opponent']]
-                if team.abbrev not in week_teams or opponent.abbrev not in week_teams or schedule.already_played(team, opponent):
-                    raise CannotFulfillOverride
-                if override.get('force_home'):
-                    schedule.add(Game(team, opponent, week, forced=True, is_bye=override.get('is_bye')))
-                else:
-                    schedule.add(Game(opponent, team, week, forced=True, is_bye=override.get('is_bye')))
-                del week_teams[team.abbrev]
-                del week_teams[opponent.abbrev]
+            try:
+                if override.get('force_opponent'):
+                    team = teams[override['team']]
+                    opponent = teams[override['force_opponent']]
+                    if team.abbrev not in week_teams or opponent.abbrev not in week_teams or schedule.already_played(team, opponent):
+                        raise CannotFulfillOverride
+                    if override.get('force_home'):
+                        schedule.add(Game(team, opponent, week, forced=True, is_bye=override.get('is_bye')))
+                    else:
+                        schedule.add(Game(opponent, team, week, forced=True, is_bye=override.get('is_bye')))
+                    del week_teams[team.abbrev]
+                    del week_teams[opponent.abbrev]
 
-            elif override.get('force_home'):
-                team = teams[override['team']]
-                if team.abbrev not in week_teams:
-                    raise CannotFulfillOverride
-                opponent = pick_random_opponent(team, week_teams, schedule, avoid_teams=override.get('avoid_opponents_this_week'))
-                schedule.add(Game(team, opponent, week, forced=True))
-                del week_teams[team.abbrev]
-                del week_teams[opponent.abbrev]
+                elif override.get('force_home'):
+                    team = teams[override['team']]
+                    if team.abbrev not in week_teams:
+                        raise CannotFulfillOverride
+                    opponent = pick_random_opponent(team, week_teams, schedule, avoid_teams=override.get('avoid_opponents_this_week'))
+                    schedule.add(Game(team, opponent, week, forced=True))
+                    del week_teams[team.abbrev]
+                    del week_teams[opponent.abbrev]
 
-            elif override.get('force_away'):
-                team = teams[override['team']]
-                if team.abbrev not in week_teams:
-                    raise CannotFulfillOverride
-                opponent = pick_random_opponent(team, week_teams, schedule, avoid_teams=override.get('avoid_opponents_this_week'))
-                schedule.add(Game(opponent, team, week, forced=True))
-                del week_teams[team.abbrev]
-                del week_teams[opponent.abbrev]
+                elif override.get('force_away'):
+                    team = teams[override['team']]
+                    if team.abbrev not in week_teams:
+                        raise CannotFulfillOverride
+                    opponent = pick_random_opponent(team, week_teams, schedule, avoid_teams=override.get('avoid_opponents_this_week'))
+                    schedule.add(Game(opponent, team, week, forced=True))
+                    del week_teams[team.abbrev]
+                    del week_teams[opponent.abbrev]
+            except KeyError, e:
+                raise e
+                raise NoAvailableOpponnentError, "Cannot find opponent for %s in week %s" % (team, week)
 
         for abbrev, team in week_teams.items():
             if abbrev not in week_teams:
                 continue
             try:
                 opponent = pick_random_opponent(team, week_teams, schedule)
-                schedule.add(Game(team, opponent, week, is_bye=(team.abbrev is 'BYE' or opponent.abbrev is 'BYE')))
+
+                # Check for bye
+                schedule.add(Game(team, opponent, week, is_bye=_is_bye(team, opponent)))
                 del week_teams[team.abbrev]
                 del week_teams[opponent.abbrev]
+            #except KeyError:
+            #    raise NoAvailableOpponnentError, "Cannot find opponent for %s in week %s" % (team, week)
             except NoAvailableOpponnentError:
                 raise NoAvailableOpponnentError, "Cannot find opponent for %s in week %s" % (team, week)
 
@@ -665,6 +651,9 @@ def try_make_b_team_schedule():
             raise IterationError('TAG and TAB both home in week %s' % week)
 
     return schedule
+
+def _is_bye(team, opponent):
+    return team.abbrev is 'BYE' or opponent.abbrev is 'BYE' or team.abbrev.startswith('BY') or opponent.abbrev.startswith('BY')
 
 
 pick_random_opponent_counter = 0
