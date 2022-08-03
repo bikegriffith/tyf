@@ -3,7 +3,7 @@
 # https://tallmadgeyouthfootball.sportngin.com/schedule_import
 # https://help.sportsengine.com/customer/portal/articles/619699
 
-from __future__ import print_function
+
 
 se_vars = dict(
     CHI=dict(b_v='5171001', b_jv='5171015', c_v='5171028', c_jv='5171041'),

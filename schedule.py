@@ -13,57 +13,19 @@ mutation solving techniques.  If no schedule can be generated, an
 error is logged and the current best attempt will be printed.
 """
 
-from __future__ import print_function
-import random, sys, math
 
-global debug
-debug = False
+import random, sys
 
-class Field:
-    """ Represents a playing field """
+from game import Game
+from config import teams, overrides, number_weeks, debug, max_outer_loop_iterations, max_rebalance_home_away_iterations
+from team import Team
+from game import Game
+from printer import print_schedule
+from rebalance import rebalance_home_away
+from byes import is_bye, add_bye_if_needed
+from picker import pick_random_opponent, pick_random_opponent_counter
+from errors import NoAvailableOpponnentError, IterationError, CannotFulfillOverride
 
-    def __init__(self, abbrev):
-        self.abbrev = abbrev
-
-class Team:
-    """ Represents a team """
-
-    def __init__(self, abbrev, division):
-        self.abbrev = abbrev
-        self.division = division 
-
-    def is_pseudo_team_bye(self):
-        return self.abbrev.startswith('BY') #BYE
-
-    def __repr__(self):
-        return self.abbrev
-
-class Game:
-    """ Represents a game between two teams in a given week.  If
-        the game was the result of a forced condition, the forced
-        flag is set.  If the game is a bye, the is_bye flag is set.
-    """
-
-    def __init__(self, home, away, week, forced=False, is_bye=False):
-        self.home = home
-        self.away = away
-        self.week = week
-        self.forced = forced
-        self.is_bye = is_bye or _is_bye(home, away)
-
-        if self.home.abbrev == 'PRM':
-            self.swap()
-
-    def swap(self):
-        """ Swap home and away teams """
-        if self.away.abbrev == 'PRM':
-            return
-        tmp = self.away
-        self.away = self.home
-        self.home = tmp
-
-    def __repr__(self):
-        return "Week %s - %s vs %s " % (self.week, self.home, self.away)
 
 class LeagueSchedule:
     """ Used to build a schedule for the entire league for a given
@@ -74,89 +36,24 @@ class LeagueSchedule:
         self.teams = teams
         self.games = []
         self.num_weeks = num_weeks
+        self.games_by_team = {}
+        for abbrev in teams:
+            self.games_by_team[abbrev] = []
 
     def print_schedule(self):
-        teams = self.teams.values()
-        teams.sort(key=lambda t: t.abbrev)
-        for team in teams:
-            ta = team.abbrev
-            if team.is_pseudo_team_bye():
-                continue
-            opponents = [self.opponent_in_week(ta, i+1) for i in range(self.num_weeks)]
-            unplayed = list(set(t for t in self.teams.keys() if t != ta) - set(o.lstrip('@') for o in opponents))
-            line = "%s:\t" % ta
-            for opponent in opponents:
-                if opponent.startswith('BY'):
-                    opponent = '*BYE*'
-                line += "%s\t" % opponent
-            line += "<" + ",".join(unplayed) + ">"
-            line += "\t" + str(self.home_game_count_for_team(ta))
-            print(line)
+        print_schedule(self)
 
     def add(self, game):
         if debug:
             print(game)
         self.games.append(game)
 
-    def add_bye_if_needed(self):
-        if number_weeks % 2 == 0:
-            return
-        needs_bye = []
-        for team in teams:
-            if team is 'BYE':
-                continue
-            if not self.has_bye(team):
-                needs_bye.append(team)
-
-        if len(needs_bye) == 2:
-            g = self.contains_matchup(*needs_bye)
-            if g:
-                g.is_bye = True
-                print('Changing game %s to bye' % g)
-                return
-
-        if len(needs_bye) == 4:
-            g = self.contains_matchup(needs_bye[0], needs_bye[1])
-            if g:
-                g.is_bye = True
-                print('Changing game %s to bye' % g)
-                g = self.contains_matchup(needs_bye[2], needs_bye[3])
-                if g:
-                    g.is_bye = True
-                    print('Changing game %s to bye' % g)
-                    return
-                else:
-                    print('Unable to add bye for %s', needs_bye)
-                    return
-            g = self.contains_matchup(needs_bye[0], needs_bye[2])
-            if g:
-                g.is_bye = True
-                print('Changing game %s to bye' % g)
-                g = self.contains_matchup(needs_bye[1], needs_bye[3])
-                if g:
-                    g.is_bye = True
-                    print('Changing game %s to bye' % g)
-                    return
-                else:
-                    print('Unable to add bye for %s', needs_bye)
-                    return
-            g = self.contains_matchup(needs_bye[0], needs_bye[3])
-            if g:
-                g.is_bye = True
-                print('Changing game %s to bye' % g)
-                g = self.contains_matchup(needs_bye[1], needs_bye[2])
-                if g:
-                    g.is_bye = True
-                    print('Changing game %s to bye' % g)
-                    return
-                else:
-                    print('Unable to add bye for %s', needs_bye)
-                    return
-        print('Unable to add bye for %s', needs_bye)
-
+        # optimization
+        self.games_by_team[game.home.abbrev].append(game)
+        self.games_by_team[game.away.abbrev].append(game)
 
     def already_played(self, a, b):
-        for g in self.games:
+        for g in self.games_by_team[a.abbrev]:
             if g.home == a and g.away == b:
                 return True
             if g.home == b and g.away == a:
@@ -164,21 +61,21 @@ class LeagueSchedule:
         return False
 
     def game_for_team_in_week(self, abbrev, week):
-        for g in self.games:
+        for g in self.games_by_team[abbrev]:
             if (g.away.abbrev == abbrev or g.home.abbrev == abbrev) and g.week == week:
                 return g
         return None
 
     def games_for_team(self, abbrev):
         games = []
-        for g in self.games:
+        for g in self.games_by_team[abbrev]:
             if g.away.abbrev == abbrev or g.home.abbrev == abbrev:
                 games.append(g)
         games.sort(key=lambda g: g.week)
         return games
 
     def opponent_in_week(self, abbrev, week):
-        for g in self.games:
+        for g in self.games_by_team[abbrev]:
             if week != g.week:
                 continue
             if g.away is not None and g.away.abbrev == abbrev:
@@ -192,7 +89,7 @@ class LeagueSchedule:
         return None
 
     def has_bye(self, abbrev):
-        for g in self.games:
+        for g in self.games_by_team[abbrev]:
             if (g.away.abbrev == abbrev or g.home.abbrev == abbrev) and g.is_bye:
                 return True
         return False
@@ -204,7 +101,7 @@ class LeagueSchedule:
         return True
 
     def contains_matchup(self, abbrev1, abbrev2, mode=None):
-        for g in self.games:
+        for g in self.games_by_team[abbrev1]:
             if mode != 'home' and g.away.abbrev == abbrev1 and g.home.abbrev == abbrev2:
                 return g
             if mode != 'away' and g.away.abbrev == abbrev2 and g.home.abbrev == abbrev1:
@@ -231,7 +128,7 @@ class LeagueSchedule:
 
     def home_game_count_for_team(self, abbrev):
         count = 0
-        for g in self.games:
+        for g in self.games_by_team[abbrev]:
             if g.is_bye:
                 continue
             if g.home.abbrev == abbrev:
@@ -239,7 +136,7 @@ class LeagueSchedule:
         return count
 
     def is_away_in_week(self, abbrev, week):
-        for g in self.games:
+        for g in self.games_by_team[abbrev]:
             if g.week != week:
                 continue
             if g.is_bye:
@@ -249,7 +146,7 @@ class LeagueSchedule:
         return False
 
     def is_home_in_week(self, abbrev, week):
-        for g in self.games:
+        for g in self.games_by_team[abbrev]:
             if g.week != week:
                 continue
             if g.is_bye:
@@ -257,42 +154,6 @@ class LeagueSchedule:
             if g.home.abbrev == abbrev:
                 return True
         return False
-
-    def pick_random_away_game_for_team(self, abbrev, sort_key=None):
-        games = []
-        for g in self.games:
-            if g.is_bye:
-                continue
-            if g.away.abbrev == abbrev:
-                games.append(g)
-        try:
-            if sort_key is None:
-                random.shuffle(games)
-            else:
-                random.shuffle(games)
-                # XXX: too smart doesn't work
-                #games = sorted(games, key=sort_key)
-            return games.pop()
-        except IndexError:
-            return None
-
-    def pick_random_home_game_for_team(self, abbrev, sort_key=None):
-        games = []
-        for g in self.games:
-            if g.is_bye:
-                continue
-            if g.home.abbrev == abbrev:
-                games.append(g)
-        try:
-            if sort_key is None:
-                random.shuffle(games)
-            else:
-                random.shuffle(games)
-                # XXX: too smart doesn't work
-                #games = sorted(games, key=sort_key)
-            return games.pop()
-        except IndexError:
-            return None
 
     def max_cross_over_games_for_any_team(self):
         max_value = 0
@@ -307,248 +168,21 @@ class LeagueSchedule:
                 print("%s-%d, " % (team, count), end="")
         return max_value
 
-
-
-    def rebalance_home_away(self, max_iterations):
-        any_team_unbalanced = False
-        game_balance = number_weeks / 2.0  # XXX: doesn't support odd schedules
-        #balanced_home_counts = [int(game_balance)]
-        balanced_home_counts = [int(math.ceil(game_balance)), int(math.floor(game_balance))]
-
-        for i in range(max_iterations):
-            if debug and (i % 1000 == 0):
-                print(".", end="")
-                sys.stdout.flush()
-
-            any_team_unbalanced = False
-            for team in teams:
-                # Byes don't matter
-                if team.startswith('BY'): #BYE
-                    continue
-                # Parma wrench
-                #if team in ('PRM', 'BYE'):
-                #    continue
-                #if team in ('COP2'): # COP2 in D Division
-                #    continue
-
-                home_count = int(self.home_game_count_for_team(team))
-
-                #print("%s - %s - %s" % (team, home_count, (home_count in [2, 3, 4])))
-
-                #if self.contains_matchup(team, 'PRM'):
-                #    balanced_home_counts = [int(math.ceil(game_balance)), int(math.floor(game_balance))]
-
-                # Equal number of home/away ... now check more complex requirements
-                if home_count in balanced_home_counts:
-                    # Cannot not have more than 3 consecutive home/away
-                    if enable_consecutive_check:
-                        max_consecutive = self.max_consecutive_home_or_away_games(team)
-                        if max_consecutive > 3:
-                            any_team_unbalanced = True
-                            g1 = self.pick_random_home_game_for_team(team)
-                            g2 = self.pick_random_away_game_for_team(team)
-                            if not g1.forced and not g2.forced:
-                                g1.swap()
-                                g2.swap()
-
-                    # # TAG/TAB cannot be both Home in same week (shared field)
-                    # if team == "TAG" or team == "TAB":
-                    #     g_home_weeks = map(lambda g: g.week,
-                    #             filter(lambda g: g.home.abbrev == 'TAG' and not g.is_bye, self.games_for_team('TAG')))
-                    #     b_home_weeks = map(lambda g: g.week,
-                    #             filter(lambda g: g.home.abbrev == 'TAB' and not g.is_bye, self.games_for_team('TAB')))
-                    #     shared_weeks = list(set(g_home_weeks) & set(b_home_weeks))
-                    #     if len(shared_weeks) > 0:
-                    #         # print("Fixing TAG/TAB sharing home in weeks %s" % shared_weeks)
-                    #         any_team_unbalanced = True
-                    #         rand_teams = ['TAG', 'TAB']
-                    #         random.shuffle(rand_teams)
-                    #         random.shuffle(shared_weeks)
-                    #         g = self.game_for_team_in_week(rand_teams[0], shared_weeks[0])
-                    #         if not g.forced:
-                    #             g.swap()
-
-                    continue
-
-                # More or less than 4 home games ... try to rebalance
-                any_team_unbalanced = True
-
-                if home_count > math.ceil(game_balance):
-                    for i in range(home_count - int(math.ceil(game_balance))):
-                        # be smarter than "random"; try to find one of the opponents
-                        # that has too few home games if possible
-                        g = self.pick_random_home_game_for_team(team,
-                                sort_key=lambda game: self.home_game_count_for_team(game.away.abbrev))
-                        if not g.forced:
-                            g.swap()
-
-                if home_count < math.floor(game_balance):
-                    for i in range(home_count):
-                        # be smarter than "random"; try to find one of the opponents
-                        # that has too many home games if possible
-                        g = self.pick_random_away_game_for_team(team,
-                                sort_key=lambda game: -1 * self.home_game_count_for_team(game.away.abbrev))
-                        if g and not g.forced:
-                            g.swap()
-
-            if not any_team_unbalanced:
-                return True
-
-        return False
+    def validate_not_sharing_home_field(self):
+        # Validate Tallmadge 2 teams not sharing field
+        # XXX: Manual check
+        for week in range(number_weeks):
+            week = week + 1
+            if self.is_home_in_week('TAG', week) and self.is_home_in_week('TAB', week):
+                raise IterationError('TAG and TAB both home in week %s' % week)
 
     def __repr__(self):
         return "%s" % self.games
 
-
-###
-### League and Season Configuration
-###
-
-#
-# Requests:
-#     Perry home games only on September 26th; October 3rd, 10th, 24th, 31st
-#       --> force away on 9/12, 9/19, 10/17
-#     Tuslaw 9/12 home game @ HS
-#     Norton 9/19 AWAY (and 10/3 home previously?)
-#     Copley 3 road games 9/12, 9/19, 9/26...
-#     Northwest must have home game 9/12
-#     Nordonia has its High School field on September 19th ,26th and October 3rd.
-#     Tallmadge D, C, B either all home or all away if possible....
-#     Parma ALL road games (just give their away opponents an extra "home")
-# Teams:
-#     Parma
-#     Hudson
-#     Nordonia
-#     Copley
-#     Tallmadge
-#     highland
-#     ---------
-#     Norton
-#     Ellet
-#     Barberton
-#     Northwest
-#     Tuslaw
-#     Perry
-# 6 regular season games, then gold (top 6), silver (bottom 6) playoffs
-# starts 9/12
-# Games times, D 9am, CV1030 jv immediately following, B 2p, jv
-#
-# Weeks
-#     1   9/12    Tuslaw home, Copley away, Perry away, Northwest home
-#     2   9/19    Norton away, Copley away, Perry away, Nordonia home
-#     3   9/26    Copley away, Perry home, Nordonia home
-#     4   10/3    [Copley home], Nordonia home
-#     5   10/10   [Copley home]
-#     6   10/17   Perry away
-#     P1  10/24
-#
-# Updates 8/27 (TODO)
-# B Teams - (11 Teams)
-# Barberton-Copley-Ellet-Highland-Hudson Blue-Hudson White-Nordonia-Norton-Northwest-Perry-Parma-Tallmadge-Tuslaw 
-# 
-# C Teams - (10 Teams)
-# Barberton-Copley-Ellet-Highland-Nordonia-Norton-Northwest-Perry-Tallmadge-Tuslaw
-# 
-# * Six game regular season schedule, with either a 2 or 3 week playoff depending upon completion of this schedule. I'm guessing a two week playoff schedule. (I only mention it because the goal would be to wrap up November 7 if possible, if not possible kids can play in the cold)
-# * Equal home/away games if possible. This is also something if not possible, people would need to live with in 2020. Important, but people can F off if not possible.
-# * Northwest home game 9/12
-# * Tallmadge, Hudson & Tuslaw CANNOT play 9/5. If, for some reason we needed to start a division on 9/5 to make this work, those three teams need byes at all levels.
-# * Nordonia would like a home game at least one, preferably twice 9/19, 9/26, 10/3 (HS turf). if one game opens your schedule up, once is fine.
-# * Parma has one B Varsity only. Highland Green B JV should follow Parma's schedule though we shouldn't have to worry about that on your schedule. It'll just be known.
-# * No Highland/Parma game. Director does not want his BJV's playing each other. If this is not possible, his teams can play each other. 
-# * If it helps at all, Highland could host a D game (start early), Highland C & CJV games, Highland Black B games, and then Parma B/Highland Green JV games at his facility. If it is not possible or causes issues, then Highland Green BJV can travel around the globe with Parma B Varsity every single week. 
-# * Hudson has two BV's and BJV's. Their Director would really prefer that both Hudson B Teams play at home on the same days and the road same weeks. He is having security, etc and like us, does not want to open his facility if unnecessary. If it is not possible, then he can deal with it but I told him we would do our best to accomodate.
-# * Perry must be AWAY 9/12, 9/19, 10/3, 10/17
-# * Anything previously mentioned with Copleys away schedule can be eliminated. They can play at any time now.
-# * Tuslaw originally needed a home game 9/12, you can ELIMINATE this request.
-# * Norton needs an AWAY game on 9/19 for all divisions
-# 
-# Obviously, the goal if possible for all Directors is to either be home or on the road. I can't imagine that is possible. We will worry about the D schedule once we iron this out. The issue with D becomes, we cannot find referees for ONE D game. So, ideally we have a D game going somewhere other games follow. Or, the nuclear option is we find a facility or two to host D games (can run both sides of the field) and we run the entire D schedule from those facilities only. 
-#
-#       
-
-
-teams_2021_b_big = dict(
-    # Big
-    BAR=Team('BAR', 'BB'),
-    ELL=Team('ELL', 'BB'),
-    NRT=Team('NRT', 'BB'),
-    TAB=Team('TAB', 'BB'),
-    TAG=Team('TAG', 'BB'),
-    PER=Team('PER', 'BB'),
-    STR=Team('STR', 'BB'),
-
-    # Small
-    SPR=Team('SPR', 'BS'),
-    COV=Team('COV', 'BS'),
-    WOD=Team('WOD', 'BS'),
-    CHI=Team('CHI', 'BS'),
-    NWR=Team('NWR', 'BS'),
-    TUS=Team('TUS', 'BS'),
-    MAN=Team('MAN', 'BS'),
-
-    # Byes
-    BY1=Team('BY1', '-'),
-    BY2=Team('BY2', '-'),
-)
-teams_2021_b_sm = dict(
-)
-
-overrides_2021_b_big = [
-# Weeks
-#     1   8/21  - Perry away
-#     2   8/28 
-#     3   9/4   - Barberton home (HS), Perry away
-#     4   9/11
-#     5   9/18  - Tallmadge home (HS - both), 
-#     6   9/25  - Barberton home (HS)
-#     7   10/2  - Barberton @ Norton
-#     8   10/9  - Barberton home (HS)
-#     9   10/16
-#     P1  10/23
-
-    # Big
-    dict(team='PER', week=1, force_away=True),
-    dict(team='PER', week=3, force_away=True, force_opponent='BAR'),
-    dict(team='TAB', week=5, force_home=True),
-    dict(team='TAG', week=5, force_home=True),
-    dict(team='BAR', week=6, force_home=True),
-    dict(team='NRT', week=7, force_home=True, force_opponent='BAR'),
-    #dict(team='BAR', week=8, force_home=True),
-
-    # Small
-    dict(team='CHI', week=1, force_home=True),
-    dict(team='CHI', week=5, force_home=True),
-    dict(team='CHI', week=6, force_home=True),
-    dict(team='CHI', week=7, force_home=True),
-    dict(team='NWR', week=2, force_home=True),
-    dict(team='TUS', week=2, force_home=True),
-    dict(team='TUS', week=4, force_home=True),
-    #dict(team='TUS', week=8, force_home=True),
-
-    # WTF
-    dict(team='MAN', week=2, force_home=True),
-    dict(team='MAN', week=4, force_home=True),
-    dict(team='MAN', week=6, force_home=True),
-    dict(team='MAN', week=8, force_home=True),
-
-    # Other requests
-    dict(team='TAG', avoid_opponent='TAB'),
-
-    # Byes
-    # TODO: force pick 2 teams each week (1 from big, 1 from small)
-    
-]
-
-
-number_weeks = 9
-enable_consecutive_check = False
-teams = teams_2021_b_big
-overrides = overrides_2021_b_big
 overrides_by_week = {}
 
 def get_overrides_by_week(week):
-    if len(overrides_by_week.keys()) == 0:
+    if len(list(overrides_by_week.keys())) == 0:
         for override in overrides:
             if override is None:
                 continue
@@ -558,9 +192,8 @@ def get_overrides_by_week(week):
     return overrides_by_week.get(week) or []
 
 
-def try_make_b_team_schedule():
-    """ Generate the schedule for the B division, returning an instance
-        of LeagueSchedule.
+def generate_random_schedule_with_overrides():
+    """ Generate the schedule randomly, returning an instance of LeagueSchedule.
 
         Note: the schedule returned here does not satisfy all constraints
         (home/away balance, etc.) but can be used as a starting point.
@@ -603,11 +236,11 @@ def try_make_b_team_schedule():
                     schedule.add(Game(opponent, team, week, forced=True))
                     del week_teams[team.abbrev]
                     del week_teams[opponent.abbrev]
-            except KeyError, e:
+            except KeyError as e:
                 raise e
-                raise NoAvailableOpponnentError, "Cannot find opponent for %s in week %s" % (team, week)
+                raise NoAvailableOpponnentError("Cannot find opponent for %s in week %s" % (team, week))
 
-        for abbrev, team in week_teams.items():
+        for abbrev, team in list(week_teams.items()):
             if abbrev not in week_teams:
                 continue
             if team.is_pseudo_team_bye():
@@ -616,13 +249,13 @@ def try_make_b_team_schedule():
                 opponent = pick_random_opponent(team, week_teams, schedule)
 
                 # Check for bye
-                schedule.add(Game(team, opponent, week, is_bye=_is_bye(team, opponent)))
+                schedule.add(Game(team, opponent, week, is_bye=is_bye(team, opponent)))
                 del week_teams[team.abbrev]
                 del week_teams[opponent.abbrev]
             #except KeyError:
             #    raise NoAvailableOpponnentError, "Cannot find opponent for %s in week %s" % (team, week)
             except NoAvailableOpponnentError:
-                raise NoAvailableOpponnentError, "Cannot find opponent for %s in week %s" % (team, week)
+                raise NoAvailableOpponnentError("Cannot find opponent for %s in week %s" % (team, week))
 
     # Validate opponent avoids
     for override in overrides:
@@ -630,119 +263,59 @@ def try_make_b_team_schedule():
             if schedule.contains_matchup(override['team'], override['avoid_opponent']):
                 raise IterationError('%s and %s should not play' % (override['team'], override['avoid_opponent']))
 
-    # Validate Tallmadge 2 teams not sharing field
-    # XXX: Manual check
-    #for week in range(number_weeks):
-    #    week = week + 1
-    #    if schedule.is_home_in_week('TAG', week) and schedule.is_home_in_week('TAB', week):
-    #        raise IterationError('TAG and TAB both home in week %s' % week)
-
     return schedule
 
-def _is_bye(team, opponent):
-    return team.is_pseudo_team_bye() or opponent.is_pseudo_team_bye()
 
-
-pick_random_opponent_counter = 0
-
-def pick_random_opponent(team, eligible_teams, schedule, avoid_teams=None):
-    """ Pick a random opponent for the given team that has not yet
-        been played against in the given schedule.
-    """
-    global pick_random_opponent_counter
-    pick_random_opponent_counter += 1
-
-    teams = eligible_teams.values()
-    random.shuffle(teams)
-    for t in teams:
-        if team.abbrev == t.abbrev:
-            continue
-        if avoid_teams and t.abbrev in avoid_teams:
-            continue
-        if schedule.already_played(team, t):
-            continue
-        # HACK: XXX: checking for double bye...
-        if t.is_pseudo_team_bye() and schedule.has_bye(team.abbrev):
-            continue
-        return t
-    raise NoAvailableOpponnentError
-
-
-
-def make_schedules():
+def make_schedule():
     """ Run an iterative constraint solver to attempt to generate a set of
         league schedules that satisfies all constraints.
     """
-    max_outer_loop_iterations = 15000000
-    max_rebalance_home_away_iterations = 50 * ((len(teams) * number_weeks) ** 2) #500000
     for i in range(max_outer_loop_iterations):
         if debug and (i % 1000 == 0):
             print("-", end="")
             sys.stdout.flush()
         try:
-            b_schedule = try_make_b_team_schedule()
-            b_schedule.add_bye_if_needed()
-            print("--- MADE DIVISION SCHEDULE ---")
-            b_schedule.print_schedule()
+            schedule = generate_random_schedule_with_overrides()
 
-            # Special requests
-            #if not b_schedule.contains_matchup('TAL', 'PER') and not b_schedule.contains_matchup('TAL', 'HUD'):
+            # Add byes in after we generate a schedule for any teams that didn't get one randomly assigned
+            add_bye_if_needed(schedule)
+
+            print("--- TENTATIVE DIVISION SCHEDULE ---")
+            schedule.print_schedule()
+
+            # Special requests not well modeled by other constraints/overrides
+            #if not schedule.contains_matchup('TAL', 'PER') and not schedule.contains_matchup('TAL', 'HUD'):
             #    print("Missing Tallmadge vs Perry|Hudson. Will try again (attempt %s)" % i)
             #    continue
-            #if not b_schedule.contains_matchup('NRT', 'COP'):
-            #    print("Missing Norton vs Copley. Will try again (attempt %s)" % i)
-            #    continue
-            #
 
             # Everyone must have 1 and only 1 bye:
-            if not b_schedule.every_team_has_one_bye():
-                print("Missing bye for team")
+            if not schedule.every_team_has_one_bye():
+                print("Not everyone has a bye, will retry :(")
                 continue
  
             # Now verify in division vs. cross-over count
-            if b_schedule.max_cross_over_games_for_any_team() > 4:
-                print("Too many cross-over games. Will try again (attempt %s)" % i)
-                continue
+            # if schedule.max_cross_over_games_for_any_team() > 4:
+            #     print("Too many cross-over games. Will try again (attempt %s)" % i)
+            #     continue
 
             # Now try to balance home game count for each team
-            print("Now attempting to balance...")
-            balanced = b_schedule.rebalance_home_away(max_rebalance_home_away_iterations)
-            print("")
-            print("--- HOME/AWAY BALANCED DIVISION SCHEDULE ---")
-            b_schedule.print_schedule()
+            print("Now attempting to re-balance home/away...")
+            balanced = rebalance_home_away(schedule, max_rebalance_home_away_iterations)
 
-            #if not b_schedule.contains_matchup('TAL', 'PER', mode='away') and not b_schedule.contains_matchup('TAL', 'HUD', mode='away'):
-            #    print("Missing Tallmadge @ Perry|Hudson. Will try again (attempt %s)" % i)
-            #    continue
+            # Final verifications
+            print("Now checking for home field overbooking...")
+            schedule.validate_not_sharing_home_field()
+
+            print("")
+            print("--- BALANCED DIVISION SCHEDULE ---")
+            schedule.print_schedule()
 
             if not balanced:
                 print("Unable to balance teams.  Will try again (attempt %s)" % i)
                 continue
 
-            # print("B Division is balanced. Now trying for C Division (with no Tallmadge Gold)...")
-            # c_teams = teams.copy()
-            # del c_teams['TAG']
-            # c_schedule = LeagueSchedule(c_teams, num_weeks=number_weeks)
-            # byes = []
-            # for g in b_schedule.games:
-            #     if g.home.abbrev == 'TAG':
-            #         c_schedule.add(Game(None, g.away, g.week, is_bye=True))
-            #         byes.append(g.away.abbrev)
-            #     elif g.away.abbrev == 'TAG':
-            #         c_schedule.add(Game(g.home, None, g.week, is_bye=True))
-            #         byes.append(g.home.abbrev)
-            #     else:
-            #         c_schedule.add(Game(g.home, g.away, g.week, forced=g.forced))
-
-            # # TODO: The C division week 9 matches for now are manually arranged using the
-            # # data printed to standard out.  This algorithm could be extended to
-            # # solve for a valid arrangement of games/byes.
-            # c_schedule.print_schedule()
-            # needs_a_bye_still = list(set(c_teams.keys()) - set(byes))
-            # print("Still needs a bye: %s", needs_a_bye_still)
-
             break
-        except IterationError, err:
+        except IterationError as err:
             if str(err) and debug:
                 print('Error: %s' %err)
             elif str(err):
@@ -753,19 +326,10 @@ def make_schedules():
         print("")
         print("Cannot find satisfactory schedule")
 
-    print("{}M matches analyzed".format(1.0*pick_random_opponent_counter/1000000.0))
+    print("{}M matches analyzed".format(1.0*pick_random_opponent_counter.value/1000000.0))
 
-
-class IterationError(Exception):
-    pass
-
-class CannotFulfillOverride(IterationError):
-    pass
-
-class NoAvailableOpponnentError(IterationError):
-    pass
 
 if __name__ == "__main__":
-    make_schedules()
+    make_schedule()
 
 
