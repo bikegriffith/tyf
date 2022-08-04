@@ -1,0 +1,28 @@
+{
+  "name": "tyf",
+  "version": "1.0.0",
+  "description": "Scripts used to assist with Tallmadge Youth Football and the Buckeye Youth Football Conference",
+  "main": "main.ts",
+  "scripts": {
+    "start": "ts-node -T main.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bikegriffith/tyf.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bikegriffith/tyf/issues"
+  },
+  "homepage": "https://github.com/bikegriffith/tyf#readme",
+  "dependencies": {
+    "rapydscript": "^0.5.62",
+    "ts-node": "^10.1.0",
+    "typescript": "^4.3.5"
+  },
+  "devDependencies": {
+    "@types/node": "^16.4.12",
+    "tslib": "^2.3.0"
+  }
+}
