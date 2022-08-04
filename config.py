@@ -43,11 +43,11 @@ overrides = [
 
     dict(team='WOD', week=7, force_away=True),
 
-    dict(team='CHI', week=2, force_home=True),
-    dict(team='CHI', week=3, force_home=True),
-    dict(team='CHI', week=4, force_away=True),
-    dict(team='CHI', week=5, force_home=True),
-    dict(team='CHI', week=6, force_home=True),
+    dict(team='CHI', week=2, force_home=True, avoid_opponents_this_week=['BY1', 'BY2']),
+    dict(team='CHI', week=3, force_home=True, avoid_opponents_this_week=['BY1', 'BY2']),
+    dict(team='CHI', week=4, force_away=True, avoid_opponents_this_week=['BY1', 'BY2']),
+    dict(team='CHI', week=5, force_home=True, avoid_opponents_this_week=['BY1', 'BY2']),
+    dict(team='CHI', week=6, force_home=True, avoid_opponents_this_week=['BY1', 'BY2']),
 
     # Tallmadge should not play itself
     dict(team='TAG', avoid_opponent='TAB'),
