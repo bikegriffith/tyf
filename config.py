@@ -33,10 +33,14 @@ teams = dict(
 overrides = [
     dict(team='BAR', week=1, force_home=True),
     dict(team='NRT', week=7, force_home=True, force_opponent='BAR'),
+
     dict(team='PER', week=1, force_away=True),
-    # dict(team='PER', week=4, force_away=True),
+    dict(team='PER', week=4, force_away=True),
+
     dict(team='STR', week=1, force_home=True, force_opponent='BY1'),
+
     dict(team='RAV', week=3, force_home=True),
+
     dict(team='WOD', week=7, force_away=True),
 
     dict(team='CHI', week=2, force_home=True),
@@ -45,12 +49,8 @@ overrides = [
     dict(team='CHI', week=5, force_home=True),
     dict(team='CHI', week=6, force_home=True),
 
-    # Tallmadge
+    # Tallmadge should not play itself
     dict(team='TAG', avoid_opponent='TAB'),
-    dict(team='TAB', week=4, force_opponent='PER', force_home=True),
-    dict(team='TAG', week=4, force_opponent='NRT', force_away=True),
-    dict(team='TAB', week=6, force_opponent='NRT', force_away=True),
-    dict(team='TAG', week=6, force_opponent='PER', force_away=True),
 ]
 
 # number of random schedules to generate before giving up
