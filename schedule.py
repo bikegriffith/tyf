@@ -14,10 +14,11 @@ error is logged and the current best attempt will be printed.
 """
 
 
-import random, sys
+import random
+import sys
 
 from game import Game
-from config import teams, overrides, number_weeks, debug, max_outer_loop_iterations, max_rebalance_home_away_iterations
+from config import teams, overrides, number_weeks, debug, max_outer_loop_iterations, max_rebalance_home_away_iterations, require_bye
 from team import Team
 from game import Game
 from printer import print_schedule
@@ -132,7 +133,7 @@ class LeagueSchedule:
             if g.is_bye:
                 continue
             if g.home.abbrev == abbrev:
-               count = count + 1
+                count = count + 1
         return count
 
     def is_away_in_week(self, abbrev, week):
@@ -161,7 +162,7 @@ class LeagueSchedule:
             count = len([
                 g for g in self.games_for_team(team)
                 if not g.is_bye and g.home.division != g.away.division
-                ])
+            ])
             if count > max_value:
                 max_value = count
             if count > 4:
@@ -179,7 +180,9 @@ class LeagueSchedule:
     def __repr__(self):
         return "%s" % self.games
 
+
 overrides_by_week = {}
+
 
 def get_overrides_by_week(week):
     if len(list(overrides_by_week.keys())) == 0:
@@ -213,9 +216,11 @@ def generate_random_schedule_with_overrides():
                     if team.abbrev not in week_teams or opponent.abbrev not in week_teams or schedule.already_played(team, opponent):
                         raise CannotFulfillOverride
                     if override.get('force_home'):
-                        schedule.add(Game(team, opponent, week, forced=True, is_bye=override.get('is_bye')))
+                        schedule.add(
+                            Game(team, opponent, week, forced=True, is_bye=override.get('is_bye')))
                     else:
-                        schedule.add(Game(opponent, team, week, forced=True, is_bye=override.get('is_bye')))
+                        schedule.add(
+                            Game(opponent, team, week, forced=True, is_bye=override.get('is_bye')))
                     del week_teams[team.abbrev]
                     del week_teams[opponent.abbrev]
 
@@ -223,7 +228,8 @@ def generate_random_schedule_with_overrides():
                     team = teams[override['team']]
                     if team.abbrev not in week_teams:
                         raise CannotFulfillOverride
-                    opponent = pick_random_opponent(team, week_teams, schedule, avoid_teams=override.get('avoid_opponents_this_week'))
+                    opponent = pick_random_opponent(
+                        team, week_teams, schedule, avoid_teams=override.get('avoid_opponents_this_week'))
                     schedule.add(Game(team, opponent, week, forced=True))
                     del week_teams[team.abbrev]
                     del week_teams[opponent.abbrev]
@@ -232,13 +238,15 @@ def generate_random_schedule_with_overrides():
                     team = teams[override['team']]
                     if team.abbrev not in week_teams:
                         raise CannotFulfillOverride
-                    opponent = pick_random_opponent(team, week_teams, schedule, avoid_teams=override.get('avoid_opponents_this_week'))
+                    opponent = pick_random_opponent(
+                        team, week_teams, schedule, avoid_teams=override.get('avoid_opponents_this_week'))
                     schedule.add(Game(opponent, team, week, forced=True))
                     del week_teams[team.abbrev]
                     del week_teams[opponent.abbrev]
             except KeyError as e:
                 raise e
-                raise NoAvailableOpponnentError("Cannot find opponent for %s in week %s" % (team, week))
+                raise NoAvailableOpponnentError(
+                    "Cannot find opponent for %s in week %s" % (team, week))
 
         for abbrev, team in list(week_teams.items()):
             if abbrev not in week_teams:
@@ -249,19 +257,22 @@ def generate_random_schedule_with_overrides():
                 opponent = pick_random_opponent(team, week_teams, schedule)
 
                 # Check for bye
-                schedule.add(Game(team, opponent, week, is_bye=is_bye(team, opponent)))
+                schedule.add(Game(team, opponent, week,
+                             is_bye=is_bye(team, opponent)))
                 del week_teams[team.abbrev]
                 del week_teams[opponent.abbrev]
-            #except KeyError:
+            # except KeyError:
             #    raise NoAvailableOpponnentError, "Cannot find opponent for %s in week %s" % (team, week)
             except NoAvailableOpponnentError:
-                raise NoAvailableOpponnentError("Cannot find opponent for %s in week %s" % (team, week))
+                raise NoAvailableOpponnentError(
+                    "Cannot find opponent for %s in week %s" % (team, week))
 
     # Validate opponent avoids
     for override in overrides:
         if override is not None and override.get('avoid_opponent'):
             if schedule.contains_matchup(override['team'], override['avoid_opponent']):
-                raise IterationError('%s and %s should not play' % (override['team'], override['avoid_opponent']))
+                raise IterationError('%s and %s should not play' % (
+                    override['team'], override['avoid_opponent']))
 
     return schedule
 
@@ -278,21 +289,22 @@ def make_schedule():
             schedule = generate_random_schedule_with_overrides()
 
             # Add byes in after we generate a schedule for any teams that didn't get one randomly assigned
-            add_bye_if_needed(schedule)
+            if require_bye:
+                add_bye_if_needed(schedule)
 
             print("--- TENTATIVE DIVISION SCHEDULE ---")
             schedule.print_schedule()
 
             # Special requests not well modeled by other constraints/overrides
-            #if not schedule.contains_matchup('TAL', 'PER') and not schedule.contains_matchup('TAL', 'HUD'):
+            # if not schedule.contains_matchup('TAL', 'PER') and not schedule.contains_matchup('TAL', 'HUD'):
             #    print("Missing Tallmadge vs Perry|Hudson. Will try again (attempt %s)" % i)
             #    continue
 
             # Everyone must have 1 and only 1 bye:
-            if not schedule.every_team_has_one_bye():
+            if require_bye and not schedule.every_team_has_one_bye():
                 print("Not everyone has a bye, will retry :(")
                 continue
- 
+
             # Now verify in division vs. cross-over count
             # if schedule.max_cross_over_games_for_any_team() > 4:
             #     print("Too many cross-over games. Will try again (attempt %s)" % i)
@@ -300,7 +312,8 @@ def make_schedule():
 
             # Now try to balance home game count for each team
             print("Now attempting to re-balance home/away...")
-            balanced = rebalance_home_away(schedule, max_rebalance_home_away_iterations)
+            balanced = rebalance_home_away(
+                schedule, max_rebalance_home_away_iterations)
 
             # Final verifications
             print("Now checking for home field overbooking...")
@@ -317,7 +330,7 @@ def make_schedule():
             break
         except IterationError as err:
             if str(err) and debug:
-                print('Error: %s' %err)
+                print('Error: %s' % err)
             elif str(err):
                 # print("Unable to find optimal schedule.  Will try again (attempt %s)" % i)
                 print(".", end="")
@@ -326,10 +339,9 @@ def make_schedule():
         print("")
         print("Cannot find satisfactory schedule")
 
-    print("{}M matches analyzed".format(1.0*pick_random_opponent_counter.value/1000000.0))
+    print("{}M matches analyzed".format(
+        1.0*pick_random_opponent_counter.value/1000000.0))
 
 
 if __name__ == "__main__":
     make_schedule()
-
-
