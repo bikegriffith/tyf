@@ -9,7 +9,7 @@ number_weeks = 8
 require_bye = False
 
 # XXX: this may be too aggressive; we can solve it with 3
-max_consecutive_home_away_game_limit = 2
+max_consecutive_home_away_game_limit = 3
 
 debug = False
 

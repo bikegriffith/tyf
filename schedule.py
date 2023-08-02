@@ -14,7 +14,6 @@ error is logged and the current best attempt will be printed.
 """
 
 
-import random
 import sys
 
 from game import Game
