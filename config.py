@@ -4,9 +4,9 @@
 
 from team import Team
 
-number_weeks = 8
+number_weeks = 9
 
-require_bye = False
+require_bye = True
 
 # XXX: this may be too aggressive; we can solve it with 3
 max_consecutive_home_away_game_limit = 3
@@ -28,8 +28,8 @@ teams = dict(
     MAN=Team('MAN', 'B'),
 
     # Byes
-    # BY1=Team('BY1', '-'),
-    # BY2=Team('BY2', '-'),
+    BY1=Team('BY1', '-'),
+    BY2=Team('BY2', '-'),
 )
 
 # Weeks
@@ -43,8 +43,12 @@ teams = dict(
 # 8 - 10/7
 
 overrides = [
-    # Barberton @ Norton 9/30
+    # Avoid week 1 byes
+    dict(team='BY1', week=1, force_home=True, force_opponent='BY2'),
+
+    # Barberton @ Norton 9/30, Away or bye 8/19
     dict(team='NRT', week=7, force_home=True, force_opponent='BAR'),
+    dict(team='BAR', week=1, force_away=True),
 
     # Chippeway Home 8/19, 8/26, 9/9, 10/7
     dict(team='CHI', week=1, force_home=True),
