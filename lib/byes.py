@@ -1,14 +1,16 @@
 from config import number_weeks, teams
 
+
 def is_bye(team, opponent):
     return team.is_pseudo_team_bye() or opponent.is_pseudo_team_bye()
+
 
 def add_bye_if_needed(schedule):
     if number_weeks % 2 == 0:
         return
     needs_bye = []
     for team in teams:
-        if team.startswith('BY'): #BYE
+        if team.startswith('BY'):  # BYE
             continue
         if not schedule.has_bye(team):
             needs_bye.append(team)

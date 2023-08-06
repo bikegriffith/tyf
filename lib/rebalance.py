@@ -1,12 +1,16 @@
-import random, sys, math
+import random
+import sys
+import math
 from config import number_weeks, debug, max_consecutive_home_away_game_limit
-from picker import pick_random_away_game_for_team, pick_random_home_game_for_team
+from lib.picker import pick_random_away_game_for_team, pick_random_home_game_for_team
+
 
 def rebalance_home_away(schedule, max_iterations):
     any_team_unbalanced = False
     game_balance = number_weeks / 2.0  # XXX: doesn't support odd schedules
     #balanced_home_counts = [int(game_balance)]
-    balanced_home_counts = [int(math.ceil(game_balance)), int(math.floor(game_balance))]
+    balanced_home_counts = [
+        int(math.ceil(game_balance)), int(math.floor(game_balance))]
 
     for i in range(max_iterations):
         if debug and (i % 1000 == 0):
@@ -16,7 +20,7 @@ def rebalance_home_away(schedule, max_iterations):
         any_team_unbalanced = False
         for team in schedule.teams:
             # Byes don't matter
-            if team.startswith('BY'): #BYE
+            if team.startswith('BY'):  # BYE
                 continue
 
             home_count = int(schedule.home_game_count_for_team(team))
@@ -27,7 +31,8 @@ def rebalance_home_away(schedule, max_iterations):
             if home_count in balanced_home_counts:
                 # Cannot not have more than 3 consecutive home/away
                 if max_consecutive_home_away_game_limit:
-                    max_consecutive = schedule.max_consecutive_home_or_away_games(team)
+                    max_consecutive = schedule.max_consecutive_home_or_away_games(
+                        team)
                     if max_consecutive > max_consecutive_home_away_game_limit:
                         any_team_unbalanced = True
                         g1 = pick_random_home_game_for_team(schedule, team)
@@ -39,9 +44,9 @@ def rebalance_home_away(schedule, max_iterations):
                 # TAG/TAB cannot be both Home in same week (shared field)
                 if team == "TAG" or team == "TAB":
                     g_home_weeks = map(lambda g: g.week,
-                            filter(lambda g: g.home.abbrev == 'TAG' and not g.is_bye, schedule.games_for_team('TAG')))
+                                       filter(lambda g: g.home.abbrev == 'TAG' and not g.is_bye, schedule.games_for_team('TAG')))
                     b_home_weeks = map(lambda g: g.week,
-                            filter(lambda g: g.home.abbrev == 'TAB' and not g.is_bye, schedule.games_for_team('TAB')))
+                                       filter(lambda g: g.home.abbrev == 'TAB' and not g.is_bye, schedule.games_for_team('TAB')))
                     shared_weeks = list(set(g_home_weeks) & set(b_home_weeks))
                     if len(shared_weeks) > 0:
                         # print("Fixing TAG/TAB sharing home in weeks %s" % shared_weeks)
@@ -49,7 +54,8 @@ def rebalance_home_away(schedule, max_iterations):
                         rand_teams = ['TAG', 'TAB']
                         random.shuffle(rand_teams)
                         random.shuffle(shared_weeks)
-                        g = schedule.game_for_team_in_week(rand_teams[0], shared_weeks[0])
+                        g = schedule.game_for_team_in_week(
+                            rand_teams[0], shared_weeks[0])
                         if not g.forced:
                             g.swap()
 
@@ -63,7 +69,7 @@ def rebalance_home_away(schedule, max_iterations):
                     # be smarter than "random"; try to find one of the opponents
                     # that has too few home games if possible
                     g = pick_random_home_game_for_team(schedule, team,
-                            sort_key=lambda game: schedule.home_game_count_for_team(game.away.abbrev))
+                                                       sort_key=lambda game: schedule.home_game_count_for_team(game.away.abbrev))
                     if not g.forced:
                         g.swap()
 
@@ -72,7 +78,7 @@ def rebalance_home_away(schedule, max_iterations):
                     # be smarter than "random"; try to find one of the opponents
                     # that has too many home games if possible
                     g = pick_random_away_game_for_team(schedule, team,
-                            sort_key=lambda game: -1 * schedule.home_game_count_for_team(game.away.abbrev))
+                                                       sort_key=lambda game: -1 * schedule.home_game_count_for_team(game.away.abbrev))
                     if g and not g.forced:
                         g.swap()
 

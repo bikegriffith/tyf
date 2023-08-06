@@ -1,4 +1,5 @@
-from byes import is_bye as _is_bye
+from lib.byes import is_bye as _is_bye
+
 
 class Game:
     """ Represents a game between two teams in a given week.  If
