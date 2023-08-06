@@ -16,15 +16,16 @@ error is logged and the current best attempt will be printed.
 
 import sys
 
-from game import Game
 from config import teams, overrides, number_weeks, debug, max_outer_loop_iterations, max_rebalance_home_away_iterations, require_bye
-from team import Team
-from game import Game
-from printer import print_schedule
-from rebalance import rebalance_home_away
-from byes import is_bye, add_bye_if_needed
-from picker import pick_random_opponent, pick_random_opponent_counter
-from errors import NoAvailableOpponnentError, IterationError, CannotFulfillOverride
+
+from lib.game import Game
+from lib.team import Team
+from lib.game import Game
+from lib.printer import print_schedule
+from lib.rebalance import rebalance_home_away
+from lib.byes import is_bye, add_bye_if_needed
+from lib.picker import pick_random_opponent, pick_random_opponent_counter
+from lib.errors import NoAvailableOpponnentError, IterationError, CannotFulfillOverride
 
 
 class LeagueSchedule:

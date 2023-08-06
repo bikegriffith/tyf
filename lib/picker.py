@@ -1,5 +1,6 @@
 import random
-from errors import NoAvailableOpponnentError
+from lib.errors import NoAvailableOpponnentError
+
 
 def pick_random_away_game_for_team(schedule, abbrev, sort_key=None):
     games = []
@@ -19,6 +20,7 @@ def pick_random_away_game_for_team(schedule, abbrev, sort_key=None):
     except IndexError:
         return None
 
+
 def pick_random_home_game_for_team(schedule, abbrev, sort_key=None):
     games = []
     for g in schedule.games:
@@ -37,11 +39,14 @@ def pick_random_home_game_for_team(schedule, abbrev, sort_key=None):
     except IndexError:
         return None
 
+
 class Counter:
     def __init__(self):
         self.value = 0
 
+
 pick_random_opponent_counter = Counter()
+
 
 def pick_random_opponent(team, eligible_teams, schedule, avoid_teams=None):
     """ Pick a random opponent for the given team that has not yet

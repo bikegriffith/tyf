@@ -2,7 +2,7 @@
 # League and Season Configuration
 ###
 
-from team import Team
+from lib.team import Team
 
 number_weeks = 9
 
